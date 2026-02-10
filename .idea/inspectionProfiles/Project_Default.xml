@@ -1,0 +1,39 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="scikit-learn" />
+          <option value="seaborn" />
+          <option value="einops" />
+          <option value="mlflow" />
+          <option value="yacs" />
+          <option value="azure-storage-queue" />
+          <option value="pymongo" />
+          <option value="pypeln" />
+          <option value="pathos" />
+          <option value="python-json-logger" />
+          <option value="elasticsearch" />
+          <option value="torchaudio" />
+          <option value="numpy" />
+          <option value="pandas" />
+          <option value="tqdm" />
+          <option value="Pillow" />
+          <option value="opencv-python" />
+          <option value="matplotlib" />
+          <option value="torch" />
+          <option value="torchvision" />
+          <option value="ultralytics" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyStubPackagesAdvertiser" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="pandas" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
