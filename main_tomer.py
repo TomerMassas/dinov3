@@ -1,41 +1,34 @@
-import os, sys
-repo_root = r"C:\Users\TomerMassas\Documents\GitHub\dinov3"
-bad_path = os.path.join(repo_root, "dinov3")  # this is the one that makes `logging` collide
-# Remove the bad path if present
-sys.path = [p for p in sys.path if os.path.normcase(p) != os.path.normcase(bad_path)]
-# Ensure repo root is present (safe)
-if os.path.normcase(repo_root) not in map(os.path.normcase, sys.path):
-    sys.path.insert(0, repo_root)
-
-
+import os.path
+from pathlib import Path
 import torch
-
-repo_dir = r"C:\Users\TomerMassas\Documents\GitHub\dinov3"
-ckpt = r".\weights\dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"
-
-
-
-m = torch.hub.load(repo_dir, "dinov3_vitl16", source="local", weights=ckpt)
-device = "cuda" if torch.cuda.is_available() else "cpu"
-m = m.to(device)
-m.eval()
-
-
 import glob
-import torch
 import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
+from dinov3.models.vision_transformer import vit_large
+
+ckpt_path = os.path.join("./dinov3", "weights","dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth")
+model = vit_large()  # or vit_base/vit_small etc
+state = torch.load(ckpt_path, map_location="cpu")
+model.load_state_dict(state, strict=False)  # strict depends on ckpt format
+model.eval().cuda()
 
 
+# repo_root = Path(__file__).resolve().parent
+ckpt = os.path.join("./dinov3", "weights","dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth")
 
-tfm = transforms.Compose([
-                            transforms.Resize(256),
+m = torch.load(ckpt)
+# m = torch.hub.load(str(repo_root), "dinov3_vitl16", source="local", weights=str(ckpt))
+device = "cuda" if torch.cuda.is_available() else "cpu"
+m = m.to(device).eval()
+m.eval()
+
+
+tfm = transforms.Compose([  transforms.Resize(256),
                             transforms.CenterCrop(224),
                             transforms.ToTensor(),
                             transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                                                 std=(0.229, 0.224, 0.225)),
-                    ])
+                                                 std=(0.229, 0.224, 0.225)),])
 
 paths = glob.glob(r"C:\Users\TomerMassas\Documents\GitHub\person-reID\dataset_utils\dataset_pretrain\15982458\bbox_images\*.jpg", recursive=True)[:64]
 imgs = torch.stack([tfm(Image.open(p).convert("RGB")) for p in paths]).to(device)

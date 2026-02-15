@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.11 (dinov3)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.11 (.venv)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Remote 3.12 (sftp://azureuser@10.0.32.13:22/data/AI/Tomer/Train_DinoV3/bin/python)" project-jdk-type="Python SDK" />
 </project>
