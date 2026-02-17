@@ -1,5 +1,8 @@
 import math
 import torch
+import torch.distributed as dist
+import torch.compiler
+torch.compiler.set_stance("force_eager")
 from functools import partial
 import argparse
 import os
@@ -211,6 +214,7 @@ def main():
     lr_s, wd_s, mom_s, ttemp_s, lastlr_s = build_schedulers(cfg)
 
     # Run just 10 iters for now
+    # TODO move later the train loop into a separate function
     max_iters = min(10, cfg.optim.epochs * cfg.train.OFFICIAL_EPOCH_LENGTH)
 
     for it in range(max_iters):
@@ -225,16 +229,6 @@ def main():
         # data = next(it_data)
         data = to_device(next(it_data), torch.device("cuda"))
         data["global_batch_size"] = global_batch_size
-        if it == 0:
-            print("Batch type:", type(data))
-            if isinstance(data, dict):
-                print("Batch keys:", list(data.keys()))
-                for k, v in data.items():
-                    if torch.is_tensor(v):
-                        print(k, v.shape, v.dtype, v.device)
-                    elif isinstance(v, (list, tuple)) and len(v) and torch.is_tensor(v[0]):
-                        print(k, "list[0]:", v[0].shape, v[0].dtype, v[0].device, "len:", len(v))
-
 
         optimizer.zero_grad(set_to_none=True)
         total_loss, metrics_dict = model.forward_backward(data, teacher_temp=teacher_temp, iteration=it)
@@ -260,6 +254,9 @@ def main():
         )
 
     print("10-iter wrapper smoke OK")
+
+    if dist.is_available() and dist.is_initialized():
+        dist.destroy_process_group()
 
 
 

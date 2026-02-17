@@ -41,7 +41,7 @@ class PicTimeImageDataset(Dataset):
 
         # If `transforms` is provided, it takes precedence (torchvision convention)
         if self.transforms is not None:
-            img = self.transforms(img)
+            img, target = self.transforms(img, target)
         else:
             if self.transform is not None:
                 img = self.transform(img)
