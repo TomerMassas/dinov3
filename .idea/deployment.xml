@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="azureuser@10.0.32.13:22 password (2)" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="azureuser@10.0.32.13:22 password (3)" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
+    <option name="confirmBeforeUploading" value="false" />
     <serverData>
       <paths name="azureuser@10.0.32.13:22 password">
         <serverdata>
@@ -15,6 +16,17 @@
             <mapping deploy="/Train_DinoV3" local="$PROJECT_DIR$" />
           </mappings>
           <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/dinov3/weights" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+      <paths name="azureuser@10.0.32.13:22 password (3)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/dinov3" local="$PROJECT_DIR$" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/dinov3/weights" />
             <excludedPath local="true" path="$PROJECT_DIR$/dinov3/weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth" />
           </excludedPaths>
         </serverdata>

@@ -39,6 +39,8 @@ from dinov3.logging import MetricLogger, setup_logging
 from dinov3.train.cosine_lr_scheduler import CosineScheduler, linear_warmup_cosine_decay
 from dinov3.train.multidist_meta_arch import MultiDistillationMetaArch
 from dinov3.train.ssl_meta_arch import SSLMetaArch
+# from train_pictime.wandb_logger import init_wandb, log_wandb, make_run_name
+
 
 assert torch.__version__ >= (2, 1)
 torch.backends.cuda.matmul.allow_tf32 = True  # pytorch 1.12 sets this to false by default
@@ -378,8 +380,7 @@ def build_multi_resolution_data_loader_from_cfg(
         )
     return data_loader
 
-
-def do_train(cfg, model, resume=False):
+def do_train(cfg, model, resume=False, wandb_run=None):
     process_subgroup = distributed.get_process_subgroup()
     ckpt_dir = Path(cfg.train.output_dir, "ckpt").expanduser()
     ckpt_dir.mkdir(parents=True, exist_ok=True)
@@ -549,6 +550,17 @@ def do_train(cfg, model, resume=False):
         metric_logger.update(mom=mom)
         metric_logger.update(last_layer_lr=last_layer_lr)
         metric_logger.update(total_loss=total_loss, **metrics_dict)
+        if wandb_run is not None and distributed.is_subgroup_main_process():
+            wb = {
+                "lr": float(lr),
+                "wd": float(wd),
+                "mom": float(mom),
+                "last_layer_lr": float(last_layer_lr),
+                "total_loss": float(total_loss.item()),
+            }
+            for k, v in metrics_dict.items():
+                wb[k] = float(v.item())
+            log_wandb(wandb_run, wb, step=it)
 
         # Submit evaluation jobs
         if (
@@ -595,11 +607,19 @@ def main(argv=None):
     else:
         setup_job(output_dir=args.output_dir, seed=args.seed)
         cfg = setup_config(args, strict_cfg=False)
-        logger.info(cfg)
+        # logger.info(cfg)
+        from omegaconf import OmegaConf
+        logger.info("\n" + OmegaConf.to_yaml(cfg))
         setup_logging(
             output=os.path.join(os.path.abspath(args.output_dir), "nan_logs"),
             name="nan_logger",
         )
+
+    run = None
+    if distributed.is_subgroup_main_process():
+        run_name = make_run_name(cfg, prefix="pictime")
+        run = init_wandb(cfg, output_dir=args.output_dir, run_name=run_name)
+
     meta_arch = {
         "SSLMetaArch": SSLMetaArch,
         "MultiDistillationMetaArch": MultiDistillationMetaArch,
@@ -630,7 +650,10 @@ def main(argv=None):
             + 1
         )
         return do_test(cfg, model, f"manual_{iteration}")
-    do_train(cfg, model, resume=not args.no_resume)
+    do_train(cfg, model, resume=not args.no_resume, wandb_run=run)
+
+    if run is not None:
+        run.finish()
 
 
 if __name__ == "__main__":

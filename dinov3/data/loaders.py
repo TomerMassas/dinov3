@@ -72,6 +72,10 @@ def _parse_dataset_str(dataset_str: str):
         class_ = NYU
         if "split" in kwargs:
             kwargs["split"] = NYU.Split[kwargs["split"]]
+    elif name == "PicTime":
+        print("using Pictime dataset")
+        from train_pictime.pictime_dataset import PicTimeImageDataset
+        class_ = PicTimeImageDataset
     else:
         raise ValueError(f'Unsupported dataset "{name}"')
 
