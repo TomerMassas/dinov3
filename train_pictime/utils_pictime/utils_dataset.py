@@ -43,9 +43,18 @@ def write_random_subset_paths(
 
 
 if __name__ == "__main__":
+    # # smoke run
+    # write_random_subset_paths(
+    #     src_txt="/data/AI/Tomer/person_reid/dataset_utils/train_images_paths.txt",
+    #     dst_txt="/data/AI/Tomer/person_reid/dataset_utils/tiny_train_images_path.txt",
+    #     k=5000,
+    #     seed=123,
+    # )
+
+    # UVAL
     write_random_subset_paths(
         src_txt="/data/AI/Tomer/person_reid/dataset_utils/train_images_paths.txt",
-        dst_txt="/data/AI/Tomer/person_reid/dataset_utils/tiny_train_images_path.txt",
-        k=5000,
-        seed=123,
+        dst_txt="/data/AI/Tomer/dinov3/train_pictime/uval_paths.txt",
+        k=10000,
+        seed=11,
     )

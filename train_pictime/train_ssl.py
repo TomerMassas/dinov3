@@ -10,14 +10,23 @@ import sys
 from types import SimpleNamespace
 from pathlib import Path
 
-from train_pictime.run_name import make_run_name
-from train_pictime.pictime_dataset import PicTimeImageDataset
+
 
 from dinov3.configs import setup_config, setup_job
 from dinov3.configs.config import DinoV3SetupArgs
 from dinov3.data import MaskingGenerator, SamplerType, collate_data_and_cast, make_data_loader
 from dinov3.train.cosine_lr_scheduler import CosineScheduler
 from dinov3.train.ssl_meta_arch import SSLMetaArch
+
+
+
+from train_pictime.run_name import make_run_name
+from train_pictime.pictime_dataset import PicTimeImageDataset
+from train_pictime.eval.embed import extract_embeddings
+from train_pictime.eval.metrics_views import evaluate_views_pack
+from train_pictime.eval.metrics_rank import embedding_variance_and_effective_rank
+
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]  # .../dinov3 (repo root)
 
@@ -254,6 +263,31 @@ def main():
         )
 
     print("10-iter wrapper smoke OK")
+
+    # evaluation
+    uval_txt = str(Path(__file__).resolve().parent / "uval_paths.txt")  # train_pictime/uval_paths.txt
+
+    # Rank metrics
+    E_t = extract_embeddings(model, uval_txt, which="teacher", batch_size=64, max_items=2000)
+    E_s = extract_embeddings(model, uval_txt, which="student", batch_size=64, max_items=2000)
+    rank_t_raw = embedding_variance_and_effective_rank(E_t, max_samples=20000, center_and_renorm=False)
+    rank_t_ctr = embedding_variance_and_effective_rank(E_t, max_samples=20000, center_and_renorm=True)
+
+    rank_s_raw = embedding_variance_and_effective_rank(E_s, max_samples=20000, center_and_renorm=False)
+    rank_s_ctr = embedding_variance_and_effective_rank(E_s, max_samples=20000, center_and_renorm=True)
+
+    print("rank_t_raw", rank_t_raw)
+    print("rank_t_ctr", rank_t_ctr)
+    print("rank_s_raw", rank_s_raw)
+    print("rank_s_ctr", rank_s_ctr)
+
+    # View metrics
+    metrics_teacher = evaluate_views_pack(model, uval_txt, which="teacher", max_items=2000)
+    metrics_student = evaluate_views_pack(model, uval_txt, which="student", max_items=2000)
+    print("EVAL teacher:", metrics_teacher)
+    print("EVAL student:", metrics_student)
+
+
 
     if dist.is_available() and dist.is_initialized():
         dist.destroy_process_group()

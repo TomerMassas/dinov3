@@ -36,7 +36,7 @@ class PicTimeImageDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Tuple[Image.Image, int]:
         p = self.images_paths[idx]
-        img = Image.open(p).convert("RGB")
+        img = Image.open(p).convert("RGB") #TODO maybe change to numpy array for better performance
         target = 0
 
         # If `transforms` is provided, it takes precedence (torchvision convention)
@@ -47,6 +47,7 @@ class PicTimeImageDataset(Dataset):
                 img = self.transform(img)
             if self.target_transform is not None:
                 target = self.target_transform(target)
+
 
         return img, target
 
