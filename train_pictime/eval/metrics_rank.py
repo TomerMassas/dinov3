@@ -7,7 +7,6 @@ import torch.nn.functional as F
 
 def embedding_variance_and_effective_rank(
     E: torch.Tensor,
-    max_samples: int = 20000,
     center_and_renorm: bool = False,
 ) -> Dict[str, float]:
     """
@@ -18,9 +17,6 @@ def embedding_variance_and_effective_rank(
     assert E.ndim == 2, f"Expected [N, D], got {tuple(E.shape)}"
     if E.is_cuda:
         E = E.cpu()
-
-    if E.shape[0] > max_samples: #TODO maybe not use subsample later
-        E = E[:max_samples]
 
     E = E.float()
 
@@ -33,12 +29,10 @@ def embedding_variance_and_effective_rank(
     dim_std = E.std(dim=0, unbiased=False)
     dim_std_sorted, _ = torch.sort(dim_std)
 
-    out: Dict[str, float] = {
-        "dim_std_mean": float(dim_std.mean().item()),
-        "dim_std_median": float(dim_std.median().item()),
-        "dim_std_p05": float(dim_std_sorted[int(0.05 * (D - 1))].item()),
-        "dim_std_p95": float(dim_std_sorted[int(0.95 * (D - 1))].item()),
-    }
+    out: Dict[str, float] = {"dim_std_mean": float(dim_std.mean().item()),
+                            "dim_std_median": float(dim_std.median().item()),
+                            "dim_std_p05": float(dim_std_sorted[int(0.05 * (D - 1))].item()),
+                            "dim_std_p95": float(dim_std_sorted[int(0.95 * (D - 1))].item()),}
 
     # Covariance eigenvalues (note: covariance itself centers again; that's fine)
     X = E - E.mean(dim=0, keepdim=True)

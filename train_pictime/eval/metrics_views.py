@@ -31,23 +31,18 @@ def _two_view_transforms(img_size: int = 224):
 
 @torch.no_grad()
 def extract_two_view_embeddings(
-    meta_arch,
-    uval_txt: str,
+    model,
+    paths: List[str],
     which: Literal["teacher", "student"],
     batch_size: int = 64,
     device: str = "cuda",
-    max_items: int | None = 2000,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Returns: (E_a, E_b) both [N, D] float32 on CPU, L2-normalized.
     """
-    paths = load_paths(uval_txt)
-    if max_items is not None:
-        paths = paths[:max_items]
-
     tfm_a, tfm_b = _two_view_transforms(img_size=224)
 
-    backbone = get_backbone(meta_arch, which=which).to(device)
+    backbone = get_backbone(model, which=which)
     was_training = backbone.training
     backbone.eval()
     try:
@@ -75,8 +70,6 @@ def extract_two_view_embeddings(
         return torch.cat(outs_a, dim=0), torch.cat(outs_b, dim=0)
     finally:
         backbone.train(was_training)
-
-
 
 def uniformity_random_pairs(E: torch.Tensor, num_pairs: int = 20000, seed: int = 0) -> dict:
     """
@@ -116,8 +109,6 @@ def alignment_cosine_distance(Ea: torch.Tensor, Eb: torch.Tensor) -> float:
     Eb = F.normalize(Eb, dim=-1)
     pos_cos = (Ea * Eb).sum(dim=-1)  # [N]
     return float((1.0 - pos_cos).mean().item())
-
-
 
 def view_consistency_topk(Ea: torch.Tensor, Eb: torch.Tensor, ks=(1, 5), chunk: int = 512) -> Dict[str, float]:
     """
@@ -192,8 +183,6 @@ def pos_neg_gap_hard(Ea: torch.Tensor, Eb: torch.Tensor, chunk: int = 512) -> di
         "gap_p90": float(p90),
     }
 
-
-
 def anisotropy_stats(E: torch.Tensor) -> Dict[str, float]:
     """
     Basic anisotropy: how aligned vectors are with the mean direction.
@@ -210,23 +199,21 @@ def anisotropy_stats(E: torch.Tensor) -> Dict[str, float]:
 
 
 def evaluate_views_pack(
-        meta_arch,
-        uval_txt: str,
+        model,
+        paths: List[str],
         which: Literal["teacher", "student"],
-        max_items: int = 2000,
         batch_size: int = 64,
         device: str = "cuda",
     ) -> Dict[str, float]:
 
-    Ea, Eb = extract_two_view_embeddings(meta_arch,
-                                        uval_txt=uval_txt,
-                                        which=which,
-                                        max_items=max_items,
-                                        batch_size=batch_size,
-                                        device=device,
-                                    )
+    Ea, Eb = extract_two_view_embeddings(model,
+                                         paths=paths,
+                                         which=which,
+                                         batch_size=batch_size,
+                                         device=device,)
 
     out: Dict[str, float] = {}
+
     # alignment
     out["alignment"] = alignment_cosine_distance(Ea, Eb)
 
@@ -244,7 +231,5 @@ def evaluate_views_pack(
     # mean-centering anisotropy check
     Ea_centered = F.normalize(Ea - Ea.mean(dim=0, keepdim=True), dim=-1)
     out.update({f"anis_centered_{k}": v for k, v in anisotropy_stats(Ea_centered).items()})
-
-
 
     return out

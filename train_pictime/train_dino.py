@@ -22,11 +22,13 @@ from dinov3.train.ssl_meta_arch import SSLMetaArch
 
 from train_pictime.run_name import make_run_name
 from train_pictime.pictime_dataset import PicTimeImageDataset
+from train_pictime.eval.metrics_prototype import prototype_utilization
 from train_pictime.eval.embed import extract_embeddings
 from train_pictime.eval.metrics_views import evaluate_views_pack
 from train_pictime.eval.metrics_rank import embedding_variance_and_effective_rank
-
-
+from train_pictime.eval.metrics_geometry import geometry_pack
+from train_pictime.wandb_logger import init_wandb, log_wandb, log_prefixed, log_prefixed_variant
+from train_pictime.eval.evaluator import Evaluator, load_eval_config
 
 REPO_ROOT = Path(__file__).resolve().parents[1]  # .../dinov3 (repo root)
 
@@ -47,11 +49,11 @@ def parse_args():
       - no CLI args were provided (len(sys.argv)==1)
     """
     debug_defaults = dict(
-        config_file=str(REPO_ROOT / "train_pictime/pictime_vitl_im1k_lin834.yaml"),
-        output_dir="/data/AI/Tomer/person_reid/body_embedding_src/experiments/pictime_wrapper_debug",
-        train_list="/data/AI/Tomer/person_reid/dataset_utils/tiny_train_images_path.txt",
-        pretrained="/data/AI/Tomer/dinov3/dinov3/weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
-    )
+                        config_file=str(REPO_ROOT / "train_pictime/pictime_vitl_im1k_lin834.yaml"),
+                        output_dir="/data/AI/Tomer/person_reid/body_embedding_src/experiments/pictime_wrapper_debug",
+                        train_list="/data/AI/Tomer/person_reid/dataset_utils/tiny_train_images_path.txt",
+                        pretrained="/data/AI/Tomer/dinov3/dinov3/weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth",
+                    )
 
     use_debug = (os.environ.get("DEBUG_PICTIME", "0") == "1") or (len(sys.argv) == 1)
 
@@ -166,7 +168,7 @@ def build_data_loader(cfg, model, train_list: str, start_iter: int = 0):
                             n_tokens=n_tokens,
                             mask_generator=mask_generator,
                             random_circular_shift=cfg.ibot.mask_random_circular_shift,
-                            local_batch_size=cfg.train.batch_size_per_gpu,  # ✅ THIS
+                            local_batch_size=cfg.train.batch_size_per_gpu,
                         )
 
     aug = model.build_data_augmentation_dino(cfg)
@@ -192,6 +194,14 @@ def to_device(batch, device):
             batch[k] = v.to(device, non_blocking=True)
     return batch
 
+def safety_check_eval(cfg, evaluator:Evaluator):
+    size_of_val_set = len(evaluator.uval_paths)
+    max_pack_size = max(int(cfg.sizes.geom), int(cfg.sizes.rank), int(cfg.sizes.proto), int(cfg.sizes.views))
+    if size_of_val_set < max_pack_size:
+        print(f"size of val set ({size_of_val_set}) is smaller than max pack size ({max_pack_size}), Please adjust cfg.sizes or provide a larger val set.")
+        raise Exception
+
+
 def main():
     args = parse_args()
 
@@ -209,6 +219,11 @@ def main():
     print("Run name:", make_run_name(cfg, prefix="pictime"))
     print("train.output_dir:", cfg.train.output_dir)
     print("student.pretrained_weights:", cfg.student.pretrained_weights)
+
+    run = init_wandb(cfg, output_dir=args.output_dir, run_name=make_run_name(cfg, prefix="pictime"))
+    eval_cfg = load_eval_config(str(Path(__file__).resolve().parent / "eval/eval_config.yaml"))
+    evaluator = Evaluator(eval_cfg, cfg, wandb_run=run)
+    safety_check_eval(eval_cfg.cfg, evaluator)
 
     model = build_model(cfg)
     model.init_weights()
@@ -251,47 +266,29 @@ def main():
 
         optimizer.step()
         model.update_ema(mom)
+        evaluator.maybe_eval(model, it)
 
-        # Print a compact line
+        # log metrics
         md = {k: float(v.item()) for k, v in metrics_dict.items()}
-        print(
-            f"[it {it:03d}] loss={float(total_loss.item()):.4f} "
-            f"lr={lr:.3e} wd={wd:.3e} mom={mom:.4f} "
-            f"ibot={md.get('ibot_loss', float('nan')):.4f} "
-            f"dino_global={md.get('dino_global_crops_loss', float('nan')):.4f} "
-            f"koleo={md.get('koleo_loss', float('nan')):.4f}"
-        )
+        if it % 10 == 0:
+            log_wandb(run, {
+                "train/iter": it,
+                "train/total_loss": float(total_loss.item()),
+                "train/ibot_loss": float(md.get("ibot_loss", 0.0)),
+                "train/dino_global": float(md.get("dino_global_crops_loss", 0.0)),
+                "train/koleo": float(md.get("koleo_loss", 0.0)),
+                "train/lr": float(lr),
+                "train/wd": float(wd),
+                "train/mom": float(mom),
+            }, step=it)
 
     print("10-iter wrapper smoke OK")
-
-    # evaluation
-    uval_txt = str(Path(__file__).resolve().parent / "uval_paths.txt")  # train_pictime/uval_paths.txt
-
-    # Rank metrics
-    E_t = extract_embeddings(model, uval_txt, which="teacher", batch_size=64, max_items=2000)
-    E_s = extract_embeddings(model, uval_txt, which="student", batch_size=64, max_items=2000)
-    rank_t_raw = embedding_variance_and_effective_rank(E_t, max_samples=20000, center_and_renorm=False)
-    rank_t_ctr = embedding_variance_and_effective_rank(E_t, max_samples=20000, center_and_renorm=True)
-
-    rank_s_raw = embedding_variance_and_effective_rank(E_s, max_samples=20000, center_and_renorm=False)
-    rank_s_ctr = embedding_variance_and_effective_rank(E_s, max_samples=20000, center_and_renorm=True)
-
-    print("rank_t_raw", rank_t_raw)
-    print("rank_t_ctr", rank_t_ctr)
-    print("rank_s_raw", rank_s_raw)
-    print("rank_s_ctr", rank_s_ctr)
-
-    # View metrics
-    metrics_teacher = evaluate_views_pack(model, uval_txt, which="teacher", max_items=2000)
-    metrics_student = evaluate_views_pack(model, uval_txt, which="student", max_items=2000)
-    print("EVAL teacher:", metrics_teacher)
-    print("EVAL student:", metrics_student)
-
 
 
     if dist.is_available() and dist.is_initialized():
         dist.destroy_process_group()
-
+    if run is not None:
+        run.finish()
 
 
 

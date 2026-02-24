@@ -1,0 +1,38 @@
+# train_pictime/eval/eval_config.yaml
+
+uval:
+  # Should contain at least uval.pool_size lines (we'll slice prefixes from it)
+  path: train_pictime/uval_paths.txt
+
+device: cuda
+batch_size: 64
+
+# When we compute embeddings at a large tier, we also compute all "smaller" embedding-based packs
+cascade:
+  enabled: true
+
+# Iteration frequencies (0 disables)
+frequency:
+  views_pack: 100 #1000
+  rank_pack:  200 #2000
+  proto_pack: 200 #2000
+  geom_pack:  1000 #10000
+
+# Sample sizes per metric pack (prefix lengths from the uval list)
+sizes:
+  views: 100 #10000
+  rank:  200 #20000
+  proto: 200 #20000
+  geom:  1000 #100000
+
+geom:
+  ks: [1, 5, 10]
+  centered: true   # log raw + centered as variants
+  num_pairs: 2000 #200000 # more pairs for better stats; can exceed num embeddings
+
+rank:
+  centered: true   # log raw + centered as variants
+
+
+logging:
+  prefix: "eval/"
