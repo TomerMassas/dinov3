@@ -25,7 +25,7 @@ class PicTimeImageDataset(Dataset):
         self.images_txt_file_path = Path(file_images_paths)
         with self.images_txt_file_path.open("r", encoding="utf-8") as f:
             self.images_paths: List[str] = [ln.strip() for ln in f if ln.strip()]
-
+        print(f"Loaded {len(self.images_paths)} image paths from {self.images_txt_file_path}")
         # DINOv3/torchvision-style transform plumbing
         self.transform = transform
         self.target_transform = target_transform
@@ -55,7 +55,9 @@ class PicTimeImageDataset(Dataset):
 
 
 if __name__ == "__main__":
-    txt = "/data/AI/Tomer/person_reid/dataset_utils/train_images_paths.txt"
+    txt = "/data/AI/Tomer/dinov3/train_pictime/train_paths.txt"
+    txt = "/data/AI/Tomer/dinov3/train_pictime/val_paths_100K.txt"
+
     ds = PicTimeImageDataset(txt)
 
     print("N =", len(ds))

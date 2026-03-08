@@ -62,7 +62,7 @@ class Evaluator:
 
     def _due(self, key: str, it: int) -> bool:
         every = int(self.freq.get(key, 0))
-        return every > 0 and (it % every == 0)
+        return every > 0 and (it % every == 0) and it>0
 
     def _plan(self, it: int) -> Dict[str, bool]:
         """
