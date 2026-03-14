@@ -7,27 +7,6 @@ import wandb
 
 
 
-def _arch_to_tag(arch: str) -> str:
-    # cfg.student.arch is typically: vit_large / vit_base / vit_small
-    a = (arch or "").lower()
-    if "large" in a:
-        return "vitl"
-    if "base" in a:
-        return "vitb"
-    if "small" in a:
-        return "vits"
-    return a.replace("_", "")
-
-
-def make_run_name(cfg, prefix: str = "pictime") -> str:
-    arch_tag = _arch_to_tag(cfg.student.arch)
-    ps = int(cfg.student.patch_size)
-    bs = int(cfg.train.batch_size_per_gpu)
-    lc = int(cfg.crops.local_crops_number)
-    lr = float(cfg.optim.lr)
-    return f"{prefix}_{arch_tag}{ps}_bs{bs}_lc{lc}_lr{lr:g}"
-
-
 def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None) -> Any:
     if wandb is None:
         return None
@@ -108,3 +87,58 @@ def log_prefixed_variant(
             if fv is not None:
                 merged[f"{prefix}{k}/{variant}"] = fv
     run.log(merged, step=step)
+
+
+def log_paired(
+    run: Any,
+    step: int,
+    prefix: str,
+    teacher_dict: Dict[str, Any],
+    student_dict: Dict[str, Any],
+) -> None:
+    """
+    Log teacher & student metrics so they appear on the SAME W&B graph.
+    Key format: {prefix}{metric}/teacher and {prefix}{metric}/student
+    W&B auto-groups these under {prefix}{metric}.
+    """
+    if run is None:
+        return
+    merged: Dict[str, float] = {}
+    for k, v in teacher_dict.items():
+        fv = _as_float(v)
+        if fv is not None:
+            merged[f"{prefix}{k}/teacher"] = fv
+    for k, v in student_dict.items():
+        fv = _as_float(v)
+        if fv is not None:
+            merged[f"{prefix}{k}/student"] = fv
+    if merged:
+        run.log(merged, step=step)
+
+
+def log_paired_variant(
+    run: Any,
+    step: int,
+    prefix: str,
+    teacher_variants: Dict[str, Dict[str, Any]],
+    student_variants: Dict[str, Dict[str, Any]],
+) -> None:
+    """
+    Like log_paired but with raw/ctr sub-variants.
+    Key format: {prefix}{metric}/{variant}/teacher
+    """
+    if run is None:
+        return
+    merged: Dict[str, float] = {}
+    for variant, d in teacher_variants.items():
+        for k, v in d.items():
+            fv = _as_float(v)
+            if fv is not None:
+                merged[f"{prefix}{k}/{variant}/teacher"] = fv
+    for variant, d in student_variants.items():
+        for k, v in d.items():
+            fv = _as_float(v)
+            if fv is not None:
+                merged[f"{prefix}{k}/{variant}/student"] = fv
+    if merged:
+        run.log(merged, step=step)

@@ -13,7 +13,7 @@ from train_pictime.eval.metrics_rank import embedding_variance_and_effective_ran
 from train_pictime.eval.metrics_geometry import geometry_pack
 from train_pictime.eval.metrics_prototype import prototype_utilization
 
-from train_pictime.wandb_logger import log_wandb, log_prefixed, log_prefixed_variant
+from train_pictime.wandb_logger import log_wandb, log_paired, log_paired_variant
 
 
 @dataclass
@@ -115,7 +115,7 @@ class Evaluator:
             Es = E_s[:self.sizes.proto]
             proto_t = prototype_utilization(model, Et, which="teacher", batch_size=self.bs, device=self.device,)
             proto_s = prototype_utilization(model, Es, which="student", batch_size=self.bs, device=self.device,)
-            log_prefixed(self.run, step=it, items=[(f"{prefix}proto/teacher/", proto_t), (f"{prefix}proto/student/", proto_s),])
+            log_paired(self.run, step=it, prefix=f"{prefix}proto/", teacher_dict=proto_t, student_dict=proto_s)
 
         # RANK
         if plan["rank"]:
@@ -129,11 +129,12 @@ class Evaluator:
                 rank_t_ctr = embedding_variance_and_effective_rank(Et, center_and_renorm=True)
                 rank_s_ctr = embedding_variance_and_effective_rank(Es, center_and_renorm=True)
 
-                log_prefixed_variant(self.run, step=it, prefix=f"{prefix}rank/teacher/", variant_to_dict={"raw": rank_t_raw, "ctr": rank_t_ctr})
-                log_prefixed_variant(self.run, step=it, prefix=f"{prefix}rank/student/", variant_to_dict={"raw": rank_s_raw, "ctr": rank_s_ctr})
+                log_paired_variant(self.run, step=it, prefix=f"{prefix}rank/",
+                                   teacher_variants={"raw": rank_t_raw, "ctr": rank_t_ctr},
+                                   student_variants={"raw": rank_s_raw, "ctr": rank_s_ctr})
 
             else:
-                log_prefixed(self.run, step=it, items=[(f"{prefix}rank/teacher/", rank_t_raw), (f"{prefix}rank/student/", rank_s_raw),])
+                log_paired(self.run, step=it, prefix=f"{prefix}rank/", teacher_dict=rank_t_raw, student_dict=rank_s_raw)
 
         # GEOM
         if plan["geom"]:
@@ -148,17 +149,18 @@ class Evaluator:
                 geom_t_ctr = geometry_pack(Et, num_pairs=self.geom_cfg.num_pairs, ks=ks, device=self.device, center_and_renorm=True)
                 geom_s_ctr = geometry_pack(Es, num_pairs=self.geom_cfg.num_pairs, ks=ks, device=self.device, center_and_renorm=True)
 
-                log_prefixed_variant(self.run, step=it, prefix=f"{prefix}geom/teacher/", variant_to_dict={"raw": geom_t_raw, "ctr": geom_t_ctr})
-                log_prefixed_variant(self.run, step=it, prefix=f"{prefix}geom/student/", variant_to_dict={"raw": geom_s_raw, "ctr": geom_s_ctr})
+                log_paired_variant(self.run, step=it, prefix=f"{prefix}geom/",
+                                   teacher_variants={"raw": geom_t_raw, "ctr": geom_t_ctr},
+                                   student_variants={"raw": geom_s_raw, "ctr": geom_s_ctr})
 
             else:
-                log_prefixed(self.run, step=it, items=[(f"{prefix}geom/teacher/", geom_t_raw), (f"{prefix}geom/student/", geom_s_raw),])
+                log_paired(self.run, step=it, prefix=f"{prefix}geom/", teacher_dict=geom_t_raw, student_dict=geom_s_raw)
 
         # VIEWS (separate forward passes; doesn’t reuse E_t/E_s because it uses 2 views (crop of the original img))
         if plan["views"]:
             vt = evaluate_views_pack(model, self.uval_paths[:self.sizes.views], which="teacher")
             vs = evaluate_views_pack(model, self.uval_paths[:self.sizes.views], which="student")
-            log_prefixed(self.run, step=it, items=[(f"{prefix}views/teacher/", vt), (f"{prefix}views/student/", vs),])
+            log_paired(self.run, step=it, prefix=f"{prefix}views/", teacher_dict=vt, student_dict=vs)
 
         # marker that eval ran
         log_wandb(self.run, {"eval/iter": it}, step=it)

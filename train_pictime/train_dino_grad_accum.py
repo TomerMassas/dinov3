@@ -217,9 +217,11 @@ def main():
     cfg.train.output_dir = args.output_dir
     cfg.student.pretrained_weights = args.pretrained
 
-    print("Run name:", make_run_name(cfg, prefix="pictime"))
+    target_batch_size = 256  # also used below for grad accumulation
+    run_name = make_run_name(cfg, effective_bs=target_batch_size)
+    print("Run name:", run_name)
 
-    run = init_wandb(cfg, output_dir=args.output_dir, run_name=make_run_name(cfg, prefix="pictime"))
+    run = init_wandb(cfg, output_dir=args.output_dir, run_name=run_name)
     eval_cfg = load_eval_config(str(Path(__file__).resolve().parent / "eval/eval_config.yaml"))
     evaluator = Evaluator(eval_cfg, cfg, wandb_run=run)
     safety_check_eval(eval_cfg.cfg, evaluator)
@@ -236,7 +238,6 @@ def main():
     # NOTE: DINOv3 is unstable at small batch sizes (e.g., 16).
     # We use gradient accumulation to simulate a larger "Target" batch size (e.g., 64).
     gpu_batch_size = cfg.train.batch_size_per_gpu
-    target_batch_size = 128 #later try 256 if results are improving
 
     # Calculate how many forward/backwards per optimizer step
     accum_steps = max(1, target_batch_size // gpu_batch_size)
@@ -337,11 +338,12 @@ def main():
             log_wandb(run, {
                 "train/iter": it,
                 "train/total_loss": accum_loss,
-                "train/effective_batch": gpu_batch_size * accum_steps,
+                "train/ibot_loss": avg_metrics.get("ibot_loss", 0.0),
+                "train/dino_global": avg_metrics.get("dino_global_crops_loss", 0.0),
+                "train/koleo": avg_metrics.get("koleo_loss", 0.0),
                 "train/lr": lr,
                 "train/wd": wd,
                 "train/mom": mom,
-                **avg_metrics  # Assuming DINO metrics keys are unique
             }, step=it)
 
         pbar.set_postfix({'loss': f'{accum_loss:.4f}', 'lr': f'{lr:.6f}'})

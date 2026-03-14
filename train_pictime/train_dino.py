@@ -240,11 +240,12 @@ def main():
     cfg.train.output_dir = args.output_dir
     cfg.student.pretrained_weights = args.pretrained
 
-    print("Run name:", make_run_name(cfg, prefix="pictime"))
+    run_name = make_run_name(cfg)
+    print("Run name:", run_name)
     print("train.output_dir:", cfg.train.output_dir)
     print("student.pretrained_weights:", cfg.student.pretrained_weights)
 
-    run = init_wandb(cfg, output_dir=args.output_dir, run_name=make_run_name(cfg, prefix="pictime"))
+    run = init_wandb(cfg, output_dir=args.output_dir, run_name=run_name)
     eval_cfg = load_eval_config(str(Path(__file__).resolve().parent / "eval/eval_config.yaml"))
     evaluator = Evaluator(eval_cfg, cfg, wandb_run=run)
     safety_check_eval(eval_cfg.cfg, evaluator)
