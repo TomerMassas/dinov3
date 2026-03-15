@@ -1,0 +1,723 @@
+wandb: [wandb.Api()] Loaded credentials for https://api.wandb.ai from /home/azureuser/.netrc.
+Found 2 matching run(s)
+
+============================================================
+Migrating run: pictime_vits16_bs16_lc8_lr0.0005 (id=5lzvy0g4)
+============================================================
+  Eval keys to migrate: 156
+  Streaming history (fetching 158 keys only)...
+  Streamed 114 rows total
+wandb: Currently logged in as: tomer-massas11 (tomer-massas) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: ⢿ Waiting for wandb.init()...
+wandb: ⣻ Waiting for wandb.init()...
+wandb: ⣽ setting up run 5lzvy0g4 (0.3s)
+wandb: ⣾ setting up run 5lzvy0g4 (0.3s)
+wandb: Tracking run with wandb version 0.25.0
+wandb: Run data is saved locally in /data/AI/Tomer/dinov3/train_pictime/wandb/run-20260315_093100-5lzvy0g4
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run pictime_vits16_bs16_lc8_lr0.0005
+wandb: ⭐️ View project at https://wandb.ai/tomer-massas/person-reid-dinov3
+wandb: 🚀 View run at https://wandb.ai/tomer-massas/person-reid-dinov3/runs/5lzvy0g4
+  Logging 51 line_series eval charts...
+    eval/geom/knn_d10_mean: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d10_p50: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d10_p90: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d10_p95: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d10_std: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d1_mean: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d1_p50: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d1_p90: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d1_p95: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d1_std: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d5_mean: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d5_p50: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d5_p90: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d5_p95: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d5_std: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/rand_dist_mean: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/rand_dist_p50: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/rand_dist_p90: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/rand_dist_p95: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/rand_dist_std: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/proto/K: 114 points, series=['student', 'teacher']
+    eval/proto/entropy: 114 points, series=['student', 'teacher']
+    eval/proto/kl_to_uniform: 114 points, series=['student', 'teacher']
+    eval/proto/mean_maxprob: 114 points, series=['student', 'teacher']
+    eval/proto/perplexity: 114 points, series=['student', 'teacher']
+    eval/proto/top10_share: 114 points, series=['student', 'teacher']
+    eval/proto/top1_share: 114 points, series=['student', 'teacher']
+    eval/proto/total_samples: 114 points, series=['student', 'teacher']
+    eval/proto/used_count: 114 points, series=['student', 'teacher']
+    eval/proto/used_frac: 114 points, series=['student', 'teacher']
+    eval/rank/dim_std_mean: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/dim_std_median: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/dim_std_p05: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/dim_std_p95: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/eff_rank_entropy: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/eff_rank_pr: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/top1_var_ratio: 114 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/views/alignment: 114 points, series=['student', 'teacher']
+    eval/views/anis_centered_cos_to_mean_mean: 114 points, series=['student', 'teacher']
+    eval/views/anis_centered_cos_to_mean_median: 114 points, series=['student', 'teacher']
+    eval/views/anis_cos_to_mean_mean: 114 points, series=['student', 'teacher']
+    eval/views/anis_cos_to_mean_median: 114 points, series=['student', 'teacher']
+    eval/views/gap_mean: 114 points, series=['student', 'teacher']
+    eval/views/gap_median: 114 points, series=['student', 'teacher']
+    eval/views/gap_p10: 114 points, series=['student', 'teacher']
+    eval/views/gap_p90: 114 points, series=['student', 'teacher']
+    eval/views/uniform_dist_mean: 114 points, series=['student', 'teacher']
+    eval/views/uniform_dist_p50: 114 points, series=['student', 'teacher']
+    eval/views/uniform_dist_p95: 114 points, series=['student', 'teacher']
+    eval/views/view_top1: 114 points, series=['student', 'teacher']
+    eval/views/view_top5: 114 points, series=['student', 'teacher']
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (2.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalprotototal_samples_table-ZFi-ew ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: + 15 more task(s)
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (2.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalprotototal_samples_table-ZFi-ew ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: + 15 more task(s)
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (2.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalprotototal_samples_table-ZFi-ew ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: + 15 more task(s)
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (2.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalprotototal_samples_table-ZFi-ew ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: + 15 more task(s)
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (3.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalprotototal_samples_table-ZFi-ew ...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: + 10 more task(s)
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (3.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalprotototal_samples_table-ZFi-ew ...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: + 10 more task(s)
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (3.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalprotototal_samples_table-ZFi-ew ...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: + 10 more task(s)
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (3.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalprotototal_samples_table-ZFi-ew ...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: + 10 more task(s)
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (3.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalprotototal_samples_table-ZFi-ew ...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: + 10 more task(s)
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (3.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (2.4s)
+wandb: + 5 more task(s)
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (3.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (2.4s)
+wandb: + 5 more task(s)
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (3.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (2.4s)
+wandb: + 5 more task(s)
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (3.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (2.4s)
+wandb: + 5 more task(s)
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (3.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalrankdim_std_median_table-CrSYoA ...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (2.4s)
+wandb: + 5 more task(s)
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (4.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (2.9s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (2.2s)
+wandb: + 2 more task(s)
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (4.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (2.9s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (2.2s)
+wandb: + 2 more task(s)
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (4.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (2.9s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (2.2s)
+wandb: + 2 more task(s)
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (4.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (2.9s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (2.2s)
+wandb: + 2 more task(s)
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (4.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (2.9s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (2.2s)
+wandb: + 2 more task(s)
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (4.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (3.4s)
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (2.7s)
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (4.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (3.4s)
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (2.7s)
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (4.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (3.4s)
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (2.7s)
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (4.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (3.4s)
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (2.7s)
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (4.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalranktop1_var_ratio_table-QeZfjw ...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalviewsalignment_table-SV6MNA (3.4s)
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (2.7s)
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (5.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (3.2s)
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (5.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (3.2s)
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (5.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (3.2s)
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (5.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (3.2s)
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (5.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalviewsgap_median_table-hBVGpA (3.2s)
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (5.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (5.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (5.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (5.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (5.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (6.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (6.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (6.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (6.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (6.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalviewsuniform_dist_p95_table-v1zU...
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (6.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (6.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (6.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (6.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (6.6s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (7.1s)
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (7.1s)
+wandb: ⣟ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (7.1s)
+wandb: ⡿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (7.1s)
+wandb: ⢿ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (7.1s)
+wandb: ⣻ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (7.6s)
+wandb: ⣽ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (7.6s)
+wandb: ⣾ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (7.6s)
+wandb: ⣷ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (7.6s)
+wandb: ⣯ uploading artifact run-5lzvy0g4-evalprototop1_share_table-HPpEmA (7.6s)
+wandb:
+wandb: Run summary:
+wandb: eval/geom/student/knn_d10_mean/ctr 0.38606
+wandb: eval/geom/student/knn_d10_mean/raw 0.32156
+wandb:  eval/geom/student/knn_d10_p50/ctr 0.39375
+wandb:  eval/geom/student/knn_d10_p50/raw 0.32196
+wandb:  eval/geom/student/knn_d10_p90/ctr 0.47385
+wandb:  eval/geom/student/knn_d10_p90/raw 0.41343
+wandb:  eval/geom/student/knn_d10_p95/ctr 0.49518
+wandb:  eval/geom/student/knn_d10_p95/raw 0.43829
+wandb:  eval/geom/student/knn_d10_std/ctr 0.07868
+wandb:  eval/geom/student/knn_d10_std/raw 0.07355
+wandb:                               +155 ...
+wandb:
+wandb: 🚀 View run pictime_vits16_bs16_lc8_lr0.0005 at: https://wandb.ai/tomer-massas/person-reid-dinov3/runs/5lzvy0g4
+wandb: ⭐️ View project at: https://wandb.ai/tomer-massas/person-reid-dinov3
+wandb: Synced 5 W&B file(s), 51 media file(s), 102 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260315_093100-5lzvy0g4/logs
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 104000 that is less than the current step 104981. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+  Done migrating pictime_vits16_bs16_lc8_lr0.0005
+
+============================================================
+Migrating run: pictime_vits16_bs16_lc8_lr0.0005 (id=k6x35pz1)
+============================================================
+  Train keys to rename: {'ibot_loss': 'train/ibot_loss', 'dino_global_crops_loss': 'train/dino_global', 'koleo_loss': 'train/koleo'}
+  Eval keys to migrate: 156
+  Streaming history (fetching 161 keys only)...
+  Streamed 66 rows total
+wandb: ⢿ Waiting for wandb.init()...
+wandb: ⣻ Waiting for wandb.init()...
+wandb: ⣽ Waiting for wandb.init()...
+wandb: Tracking run with wandb version 0.25.0
+wandb: Run data is saved locally in /data/AI/Tomer/dinov3/train_pictime/wandb/run-20260315_093137-k6x35pz1
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run pictime_vits16_bs16_lc8_lr0.0005
+wandb: ⭐️ View project at https://wandb.ai/tomer-massas/person-reid-dinov3
+wandb: 🚀 View run at https://wandb.ai/tomer-massas/person-reid-dinov3/runs/k6x35pz1
+  Re-logging 66 train rows with renamed keys...
+  Logging 51 line_series eval charts...
+    eval/geom/knn_d10_mean: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d10_p50: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d10_p90: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d10_p95: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d10_std: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d1_mean: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d1_p50: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d1_p90: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d1_p95: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d1_std: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d5_mean: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d5_p50: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d5_p90: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d5_p95: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/knn_d5_std: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/rand_dist_mean: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/rand_dist_p50: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/rand_dist_p90: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/rand_dist_p95: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/geom/rand_dist_std: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/proto/K: 66 points, series=['student', 'teacher']
+    eval/proto/entropy: 66 points, series=['student', 'teacher']
+    eval/proto/kl_to_uniform: 66 points, series=['student', 'teacher']
+    eval/proto/mean_maxprob: 66 points, series=['student', 'teacher']
+    eval/proto/perplexity: 66 points, series=['student', 'teacher']
+    eval/proto/top10_share: 66 points, series=['student', 'teacher']
+    eval/proto/top1_share: 66 points, series=['student', 'teacher']
+    eval/proto/total_samples: 66 points, series=['student', 'teacher']
+    eval/proto/used_count: 66 points, series=['student', 'teacher']
+    eval/proto/used_frac: 66 points, series=['student', 'teacher']
+    eval/rank/dim_std_mean: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/dim_std_median: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/dim_std_p05: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/dim_std_p95: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/eff_rank_entropy: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/eff_rank_pr: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/rank/top1_var_ratio: 66 points, series=['student/ctr', 'student/raw', 'teacher/ctr', 'teacher/raw']
+    eval/views/alignment: 66 points, series=['student', 'teacher']
+    eval/views/anis_centered_cos_to_mean_mean: 66 points, series=['student', 'teacher']
+    eval/views/anis_centered_cos_to_mean_median: 66 points, series=['student', 'teacher']
+    eval/views/anis_cos_to_mean_mean: 66 points, series=['student', 'teacher']
+    eval/views/anis_cos_to_mean_median: 66 points, series=['student', 'teacher']
+    eval/views/gap_mean: 66 points, series=['student', 'teacher']
+    eval/views/gap_median: 66 points, series=['student', 'teacher']
+    eval/views/gap_p10: 66 points, series=['student', 'teacher']
+    eval/views/gap_p90: 66 points, series=['student', 'teacher']
+    eval/views/uniform_dist_mean: 66 points, series=['student', 'teacher']
+    eval/views/uniform_dist_p50: 66 points, series=['student', 'teacher']
+    eval/views/uniform_dist_p95: 66 points, series=['student', 'teacher']
+    eval/views/view_top1: 66 points, series=['student', 'teacher']
+    eval/views/view_top5: 66 points, series=['student', 'teacher']
+wandb: ⢿ uploading artifact run-k6x35pz1-evalgeomknn_d5_p90_table-AedBaw (3.7s)
+wandb: ⢿ uploading artifact run-k6x35pz1-evalgeomrand_dist_p90_table-C7DXZw (...
+wandb: ⢿ uploading artifact run-k6x35pz1-evalprotoentropy_table-AxRT4w (2.7s)
+wandb: ⢿ uploading artifact run-k6x35pz1-evalprotomean_maxprob_table-QOaykA (...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb: + 16 more task(s)
+wandb: ⣻ uploading artifact run-k6x35pz1-evalgeomknn_d5_p90_table-AedBaw (3.7s)
+wandb: ⣻ uploading artifact run-k6x35pz1-evalgeomrand_dist_p90_table-C7DXZw (...
+wandb: ⣻ uploading artifact run-k6x35pz1-evalprotoentropy_table-AxRT4w (2.7s)
+wandb: ⣻ uploading artifact run-k6x35pz1-evalprotomean_maxprob_table-QOaykA (...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb: + 16 more task(s)
+wandb: ⣽ uploading artifact run-k6x35pz1-evalgeomknn_d5_p90_table-AedBaw (3.7s)
+wandb: ⣽ uploading artifact run-k6x35pz1-evalgeomrand_dist_p90_table-C7DXZw (...
+wandb: ⣽ uploading artifact run-k6x35pz1-evalprotoentropy_table-AxRT4w (2.7s)
+wandb: ⣽ uploading artifact run-k6x35pz1-evalprotomean_maxprob_table-QOaykA (...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb: + 16 more task(s)
+wandb: ⣾ uploading artifact run-k6x35pz1-evalgeomknn_d5_p90_table-AedBaw (3.7s)
+wandb: ⣾ uploading artifact run-k6x35pz1-evalgeomrand_dist_p90_table-C7DXZw (...
+wandb: ⣾ uploading artifact run-k6x35pz1-evalprotoentropy_table-AxRT4w (2.7s)
+wandb: ⣾ uploading artifact run-k6x35pz1-evalprotomean_maxprob_table-QOaykA (...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb: + 16 more task(s)
+wandb: ⣷ uploading artifact run-k6x35pz1-evalprotoentropy_table-AxRT4w (3.2s)
+wandb: ⣷ uploading artifact run-k6x35pz1-evalprotomean_maxprob_table-QOaykA (...
+wandb: ⣷ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-k6x35pz1-evalprotoused_frac_table-uaLpCw (2.5s)
+wandb: + 10 more task(s)
+wandb: ⣯ uploading artifact run-k6x35pz1-evalprotoentropy_table-AxRT4w (3.2s)
+wandb: ⣯ uploading artifact run-k6x35pz1-evalprotomean_maxprob_table-QOaykA (...
+wandb: ⣯ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣯ uploading artifact run-k6x35pz1-evalprotoused_frac_table-uaLpCw (2.5s)
+wandb: + 10 more task(s)
+wandb: ⣟ uploading artifact run-k6x35pz1-evalprotoentropy_table-AxRT4w (3.2s)
+wandb: ⣟ uploading artifact run-k6x35pz1-evalprotomean_maxprob_table-QOaykA (...
+wandb: ⣟ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣟ uploading artifact run-k6x35pz1-evalprotoused_frac_table-uaLpCw (2.5s)
+wandb: + 10 more task(s)
+wandb: ⡿ uploading artifact run-k6x35pz1-evalprotoentropy_table-AxRT4w (3.2s)
+wandb: ⡿ uploading artifact run-k6x35pz1-evalprotomean_maxprob_table-QOaykA (...
+wandb: ⡿ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⡿ uploading artifact run-k6x35pz1-evalprotoused_frac_table-uaLpCw (2.5s)
+wandb: + 10 more task(s)
+wandb: ⢿ uploading artifact run-k6x35pz1-evalprotoentropy_table-AxRT4w (3.2s)
+wandb: ⢿ uploading artifact run-k6x35pz1-evalprotomean_maxprob_table-QOaykA (...
+wandb: ⢿ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-k6x35pz1-evalprotoused_frac_table-uaLpCw (2.5s)
+wandb: + 10 more task(s)
+wandb: ⣻ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb: ⣻ uploading artifact run-k6x35pz1-evalprotoused_frac_table-uaLpCw (3.0s)
+wandb: ⣻ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (2.2s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: + 3 more task(s)
+wandb: ⣽ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb: ⣽ uploading artifact run-k6x35pz1-evalprotoused_frac_table-uaLpCw (3.0s)
+wandb: ⣽ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (2.2s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: + 3 more task(s)
+wandb: ⣾ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb: ⣾ uploading artifact run-k6x35pz1-evalprotoused_frac_table-uaLpCw (3.0s)
+wandb: ⣾ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (2.2s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: + 3 more task(s)
+wandb: ⣷ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb: ⣷ uploading artifact run-k6x35pz1-evalprotoused_frac_table-uaLpCw (3.0s)
+wandb: ⣷ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (2.2s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣷ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: + 3 more task(s)
+wandb: ⣯ uploading artifact run-k6x35pz1-evalprotototal_samples_table-KcwaHQ ...
+wandb: ⣯ uploading artifact run-k6x35pz1-evalprotoused_frac_table-uaLpCw (3.0s)
+wandb: ⣯ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (2.2s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣯ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: + 3 more task(s)
+wandb: ⣟ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (2.7s)
+wandb: ⣟ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣟ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (2.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⡿ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (2.7s)
+wandb: ⡿ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⡿ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (2.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (2.7s)
+wandb: ⢿ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⢿ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (2.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (2.7s)
+wandb: ⣻ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣻ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (2.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (2.7s)
+wandb: ⣽ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣽ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (2.1s)
+wandb:   ERROR retrying HTTP 503: The service is currently unavailable. Pleas...
+wandb: ⣾ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (3.2s)
+wandb: ⣾ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: ⣾ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (2.6s)
+wandb: ⣷ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (3.2s)
+wandb: ⣷ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: ⣷ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (2.6s)
+wandb: ⣯ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (3.2s)
+wandb: ⣯ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: ⣯ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (2.6s)
+wandb: ⣟ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (3.2s)
+wandb: ⣟ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: ⣟ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (2.6s)
+wandb: ⡿ uploading artifact run-k6x35pz1-evalviewsalignment_table-ORECaA (3.2s)
+wandb: ⡿ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: ⡿ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (2.6s)
+wandb: ⢿ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: ⢿ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (3.1s)
+wandb: ⣻ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: ⣻ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (3.1s)
+wandb: ⣽ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: ⣽ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (3.1s)
+wandb: ⣾ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: ⣾ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (3.1s)
+wandb: ⣷ uploading artifact run-k6x35pz1-evalviewsanis_cos_to_mean_median_tab...
+wandb: ⣷ uploading artifact run-k6x35pz1-evalviewsgap_p10_table-CKCEJw (3.1s)
+wandb: ⣯ uploading summary, console lines 0-52 (0.1s)
+wandb:
+wandb: Run summary:
+wandb:             dino_global_crops_loss NaN
+wandb:              dino_local_crops_loss NaN
+wandb:             dino_local_loss_weight 1
+wandb: eval/geom/student/knn_d10_mean/ctr 0.42773
+wandb: eval/geom/student/knn_d10_mean/raw 0.40835
+wandb:  eval/geom/student/knn_d10_p50/ctr 0.43924
+wandb:  eval/geom/student/knn_d10_p50/raw 0.41768
+wandb:  eval/geom/student/knn_d10_p90/ctr 0.54365
+wandb:  eval/geom/student/knn_d10_p90/raw 0.52504
+wandb:  eval/geom/student/knn_d10_p95/ctr 0.56688
+wandb:                               +160 ...
+wandb:
+wandb: 🚀 View run pictime_vits16_bs16_lc8_lr0.0005 at: https://wandb.ai/tomer-massas/person-reid-dinov3/runs/k6x35pz1
+wandb: ⭐️ View project at: https://wandb.ai/tomer-massas/person-reid-dinov3
+wandb: Synced 5 W&B file(s), 51 media file(s), 102 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260315_093137-k6x35pz1/logs
+wandb: WARNING Tried to log to step 1000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 2000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 3000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 4000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 5000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 6000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 7000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 8000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 9000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 10000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 10000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 11000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 12000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 13000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 14000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 15000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 16000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 17000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 18000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 19000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 20000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 20000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 21000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 22000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 23000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 24000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 25000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 26000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 27000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 28000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 29000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 30000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 30000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 31000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 32000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 33000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 34000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 35000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 36000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 37000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 38000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 39000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 40000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 40000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 41000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 42000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 43000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 44000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 45000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 46000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 47000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 48000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 49000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 50000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 50000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 51000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 52000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 53000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 54000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 55000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 56000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 57000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 58000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 59000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+wandb: WARNING Tried to log to step 60000 that is less than the current step 61001. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+  Done migrating pictime_vits16_bs16_lc8_lr0.0005
+
+Process finished with exit code 0

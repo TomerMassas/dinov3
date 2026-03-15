@@ -89,6 +89,9 @@ def log_prefixed_variant(
     run.log(merged, step=step)
 
 
+_paired_history: Dict[str, Dict[str, list]] = {}
+
+
 def log_paired(
     run: Any,
     step: int,
@@ -97,23 +100,33 @@ def log_paired(
     student_dict: Dict[str, Any],
 ) -> None:
     """
-    Log teacher & student metrics so they appear on the SAME W&B graph.
-    Key format: {prefix}{metric}/teacher and {prefix}{metric}/student
-    W&B auto-groups these under {prefix}{metric}.
+    Log teacher & student metrics on the SAME W&B chart via line_series.
+    Accumulates history in _paired_history and re-logs the full chart each call.
     """
     if run is None:
         return
-    merged: Dict[str, float] = {}
-    for k, v in teacher_dict.items():
-        fv = _as_float(v)
-        if fv is not None:
-            merged[f"{prefix}{k}/teacher"] = fv
-    for k, v in student_dict.items():
-        fv = _as_float(v)
-        if fv is not None:
-            merged[f"{prefix}{k}/student"] = fv
-    if merged:
-        run.log(merged, step=step)
+    payload: Dict[str, Any] = {}
+    for k in teacher_dict:
+        fv_t = _as_float(teacher_dict[k])
+        fv_s = _as_float(student_dict.get(k))
+        if fv_t is None and fv_s is None:
+            continue
+        chart_key = f"{prefix}{k}"
+        if chart_key not in _paired_history:
+            _paired_history[chart_key] = {"steps": [], "teacher": [], "student": []}
+        hist = _paired_history[chart_key]
+        hist["steps"].append(step)
+        hist["teacher"].append(fv_t)
+        hist["student"].append(fv_s)
+        payload[chart_key] = wandb.plot.line_series(
+            xs=hist["steps"],
+            ys=[hist["teacher"], hist["student"]],
+            keys=["teacher", "student"],
+            title=chart_key,
+            xname="train/iter",
+        )
+    if payload:
+        run.log(payload, step=step)
 
 
 def log_paired_variant(
@@ -125,20 +138,36 @@ def log_paired_variant(
 ) -> None:
     """
     Like log_paired but with raw/ctr sub-variants.
-    Key format: {prefix}{metric}/{variant}/teacher
+    One chart per metric, with a line per (variant, model) combo.
     """
     if run is None:
         return
-    merged: Dict[str, float] = {}
-    for variant, d in teacher_variants.items():
-        for k, v in d.items():
-            fv = _as_float(v)
-            if fv is not None:
-                merged[f"{prefix}{k}/{variant}/teacher"] = fv
-    for variant, d in student_variants.items():
-        for k, v in d.items():
-            fv = _as_float(v)
-            if fv is not None:
-                merged[f"{prefix}{k}/{variant}/student"] = fv
-    if merged:
-        run.log(merged, step=step)
+    # Collect all metric names across variants
+    all_metrics: set = set()
+    for d in list(teacher_variants.values()) + list(student_variants.values()):
+        all_metrics.update(d.keys())
+
+    variant_names = list(teacher_variants.keys())
+    series_keys = [f"teacher/{v}" for v in variant_names] + [f"student/{v}" for v in variant_names]
+
+    payload: Dict[str, Any] = {}
+    for k in all_metrics:
+        chart_key = f"{prefix}{k}"
+        if chart_key not in _paired_history:
+            _paired_history[chart_key] = {"steps": []}
+            for sk in series_keys:
+                _paired_history[chart_key][sk] = []
+        hist = _paired_history[chart_key]
+        hist["steps"].append(step)
+        for v in variant_names:
+            hist[f"teacher/{v}"].append(_as_float(teacher_variants.get(v, {}).get(k)))
+            hist[f"student/{v}"].append(_as_float(student_variants.get(v, {}).get(k)))
+        payload[chart_key] = wandb.plot.line_series(
+            xs=hist["steps"],
+            ys=[hist[sk] for sk in series_keys],
+            keys=series_keys,
+            title=chart_key,
+            xname="train/iter",
+        )
+    if payload:
+        run.log(payload, step=step)

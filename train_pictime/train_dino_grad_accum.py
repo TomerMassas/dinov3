@@ -43,6 +43,7 @@ def parse_args():
         pretrained="/data/AI/Tomer/dinov3/dinov3/weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
     )
     use_debug = (os.environ.get("DEBUG_PICTIME", "0") == "1") or (len(sys.argv) == 1)
+    print(f"Using debug args: {use_debug}")
     p = argparse.ArgumentParser("PicTime DINOv3 wrapper")
     p.add_argument("--config-file", required=not use_debug)
     p.add_argument("--output-dir", required=not use_debug)

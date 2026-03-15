@@ -28,7 +28,15 @@
           <excludedPaths>
             <excludedPath local="true" path="$PROJECT_DIR$/dinov3/weights" />
             <excludedPath local="true" path="$PROJECT_DIR$/dinov3/weights/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth" />
+            <excludedPath local="true" path="$PROJECT_DIR$/.claude" />
           </excludedPaths>
+        </serverdata>
+      </paths>
+      <paths name="azureuser@10.0.32.13:22 password (4)">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
         </serverdata>
       </paths>
       <paths name="pictimegpu@172.173.222.155:22 password (2)">
