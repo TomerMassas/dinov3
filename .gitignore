@@ -17,3 +17,4 @@ dist/
 # Ignore vscode directory
 .vscode/
 dinov3/weights
+train_pictime/my_prompt

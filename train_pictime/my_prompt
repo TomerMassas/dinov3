@@ -1,0 +1,3 @@
+the dataset is actually at a different repo folder in the vm: "/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]"
+this line:     dataset_root = Path(__file__).resolve().parent / "dataset_finetune" / "Portraits[26]"
+therefore throughs exception
