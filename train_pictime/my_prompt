@@ -1,3 +1,15 @@
-the dataset is actually at a different repo folder in the vm: "/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]"
-this line:     dataset_root = Path(__file__).resolve().parent / "dataset_finetune" / "Portraits[26]"
-therefore throughs exception
+Run name: person_reid_vits16_effbs256_lr0.0005
+WARNING: --resume but no wandb_run_id.txt found, starting new W&B run
+Traceback (most recent call last):
+  File "/home/azureuser/.pycharm_helpers/pydev/pydevd.py", line 1647, in _exec
+    pydev_imports.execfile(file, globals, locals)  # execute the script
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/azureuser/.pycharm_helpers/pydev/_pydev_imps/_pydev_execfile.py", line 18, in execfile
+    exec(compile(contents+"\n", file, 'exec'), glob, loc)
+  File "/data/AI/Tomer/dinov3/train_pictime/train_dino_grad_accum.py", line 430, in <module>
+    main()
+  File "/data/AI/Tomer/dinov3/train_pictime/train_dino_grad_accum.py", line 260, in main
+    run = init_wandb(cfg, output_dir=args.output_dir, run_name=run_name, resume_id=wandb_run_id)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^python-BaseException
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: init_wandb() got an unexpected keyword argument 'resume_id'

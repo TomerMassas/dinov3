@@ -7,7 +7,23 @@ import wandb
 
 
 
-def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None) -> Any:
+def find_wandb_run_id_by_name(run_name: str, project: Optional[str] = None, entity: Optional[str] = None) -> Optional[str]:
+    """Query W&B API for a run with the given name. Returns the latest run's ID, or None."""
+    api = wandb.Api()
+    project = project or os.environ.get("WANDB_PROJECT", "person-reid-dinov3")
+    entity = entity or os.environ.get("WANDB_ENTITY", None)
+    path = f"{entity}/{project}" if entity else project
+    try:
+        runs = api.runs(path, filters={"display_name": run_name}, order="-created_at")
+        for run in runs:
+            print(f"Found W&B run '{run_name}' with id={run.id}")
+            return run.id
+    except Exception as e:
+        print(f"WARNING: failed to query W&B API for run '{run_name}': {e}")
+    return None
+
+
+def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None, resume_id: Optional[str] = None) -> Any:
     if wandb is None:
         return None
 
@@ -16,12 +32,17 @@ def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None) -> Any:
     project = os.environ.get("WANDB_PROJECT", "person-reid-dinov3")
     entity = os.environ.get("WANDB_ENTITY", None)
 
+    resume_kwargs = {}
+    if resume_id is not None:
+        resume_kwargs = {"id": resume_id, "resume": "must"}
+
     run = wandb.init(
         project=project,
         entity=entity,
         name=run_name,
         dir=output_dir,
         config=OmegaConf.to_container(cfg, resolve=True),
+        **resume_kwargs,
     )
     wandb.define_metric("train/iter")
     wandb.define_metric("*", step_metric="train/iter")

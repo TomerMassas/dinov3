@@ -7,6 +7,7 @@ import json
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
@@ -115,71 +116,100 @@ def should_skip_project(project_dir, detections):
         return False
 
 
-@torch.no_grad()
-def extract_project_embeddings(model, project_dir, detections, tfm, device):
-    """Extract embeddings for all detected bboxes in a project.
+class CropDataset(Dataset):
+    """Flat dataset of all person crops across all projects.
 
-    Returns:
-        filenames: list of str (image filename for each embedding)
-        bbox_indices: list of int (bbox index within that image)
-        embeddings: numpy array [M, D] float32, L2-normalized
+    Items are ordered by project so that with shuffle=False, all crops from
+    one project arrive before the next — enabling per-project saving.
     """
-    images_dir = os.path.join(project_dir, "images")
-    filenames = []
-    bbox_indices = []
-    crops = []
 
-    for img_name, dets in detections.items():
-        img_path = os.path.join(images_dir, img_name)
-        if not os.path.exists(img_path):
-            continue
+    def __init__(self, entries, tfm):
+        """
+        Args:
+            entries: list of (project_dir, img_name, bbox_idx, bbox) tuples
+            tfm: torchvision transform for eval preprocessing
+        """
+        self.entries = entries
+        self.tfm = tfm
 
-        if len(dets) == 0:
-            continue
+    def __len__(self):
+        return len(self.entries)
 
+    def __getitem__(self, idx):
+        project_dir, img_name, bbox_idx, bbox = self.entries[idx]
+        img_path = os.path.join(project_dir, "images", img_name)
         try:
             img_pil = Image.open(img_path).convert("RGB")
-        except Exception as e:
-            tqdm.write(f"Warning: Failed to load {img_path}: {e}")
-            continue
-
-        if DEBUG:
-            boxes = [d["bbox"] for d in dets]
-            debug_visualize(np.asarray(img_pil), boxes)
-
-        for bbox_idx, det in enumerate(dets):
-            bbox = det["bbox"]
             crop_pil = crop_bbox(img_pil, bbox)
-            # Skip tiny crops
             if crop_pil.size[0] < 4 or crop_pil.size[1] < 4:
-                continue
-            crops.append(tfm(crop_pil))
-            filenames.append(img_name)
-            bbox_indices.append(bbox_idx)
+                return idx, torch.zeros(3, 224, 224), False
+            return idx, self.tfm(crop_pil), True
+        except Exception:
+            return idx, torch.zeros(3, 224, 224), False
 
-    if len(crops) == 0:
-        return filenames, bbox_indices, np.zeros((0, 768), dtype=np.float32)
 
-    # Batch inference
-    all_embs = []
-    for i in range(0, len(crops), MAX_BATCH_SIZE):
-        batch = torch.stack(crops[i:i + MAX_BATCH_SIZE]).to(device, non_blocking=True)
-        out = model(batch)
-        emb = F.normalize(out.float(), dim=-1)
-        all_embs.append(emb.cpu().numpy())
-
-    embeddings = np.concatenate(all_embs, axis=0)
-    return filenames, bbox_indices, embeddings
-
+def save_project(project_dir, filenames, bbox_indices, embeddings):
+    """Atomic save of embeddings.npz for one project."""
+    if len(filenames) == 0:
+        return
+    emb_array = np.concatenate(embeddings, axis=0)
+    embeddings_path = os.path.join(project_dir, EMBEDDINGS_FILENAME)
+    tmp_path = embeddings_path + ".tmp.npz"
+    np.savez(tmp_path,
+             filenames=np.array(filenames),
+             bbox_indices=np.array(bbox_indices),
+             embeddings=emb_array)
+    os.replace(tmp_path, embeddings_path)
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 DETECTIONS_FILENAME = "detections.json"
 EMBEDDINGS_FILENAME = "embeddings.npz"
 MAX_BATCH_SIZE = 64
+NUM_WORKERS = 8
 DEBUG = False
 
 
+
+############################################################################################################
+dataset_root = Path("/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]")
+project_dirs = sorted([entry.path for entry in os.scandir(dataset_root) if entry.is_dir()])
+missing_detection = 0
+exists_detection = 0
+missing_embbd = 0
+exists_embbd = 0
+nomatch = 0
+match =0
+
+for project_dir in tqdm(project_dirs, desc="Scanning"):
+    detections_path = os.path.join(project_dir, DETECTIONS_FILENAME)
+    embeddings_path = os.path.join(project_dir, EMBEDDINGS_FILENAME)
+
+    if not os.path.exists(detections_path):
+        missing_detection += 1
+    else:
+        exists_detection += 1
+        with open(detections_path, 'r') as f:
+            detections = json.load(f)
+
+    if not os.path.exists(embeddings_path):
+        missing_embbd += 1
+    else:
+        exists_embbd += 1
+        data = np.load(embeddings_path)
+
+    if os.path.exists(detections_path) and os.path.exists(embeddings_path):
+        if len(data["embeddings"]) == count_total_bboxes(detections):
+            match += 1
+        else:
+            nomatch += 1
+
+print("detections:", exists_detection/(missing_detection+exists_detection))
+print("embeddings:", exists_embbd/(exists_embbd+missing_embbd))
+print("match:", match/(match+nomatch))
+
+exit(123123123)
+##########################################################################################################
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
@@ -190,41 +220,100 @@ if __name__ == "__main__":
     dataset_root = Path("/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]")
     project_dirs = sorted([entry.path for entry in os.scandir(dataset_root) if entry.is_dir()])
 
-    total_processed = 0
+    # --- Phase 1: collect all crop entries from non-skipped projects ---
+    entries = []  # (project_dir, img_name, bbox_idx, bbox)
+    project_ranges = {}  # project_dir -> (start_idx, end_idx) in entries list
     total_skipped = 0
+
+    print("Scanning projects...")
+    for project_dir in tqdm(project_dirs, desc="Scanning"):
+        detections_path = os.path.join(project_dir, DETECTIONS_FILENAME)
+        if not os.path.exists(detections_path):
+            continue
+        with open(detections_path, 'r') as f:
+            detections = json.load(f)
+        if should_skip_project(project_dir, detections):
+            total_skipped += 1
+            continue
+
+        start = len(entries)
+        for img_name, dets in detections.items():
+            img_path = os.path.join(project_dir, "images", img_name)
+            if not os.path.exists(img_path):
+                continue
+            for bbox_idx, det in enumerate(dets):
+                entries.append((project_dir, img_name, bbox_idx, det["bbox"]))
+        end = len(entries)
+        if end > start:
+            project_ranges[project_dir] = (start, end)
+
+    print(f"Skipped {total_skipped} already-done projects. "
+          f"{len(project_ranges)} projects remaining, {len(entries)} crops to process.")
+
+    if len(entries) == 0:
+        print("Nothing to do.")
+        sys.exit(0)
+
+    # --- Phase 2: DataLoader + batched GPU inference ---
+    crop_dataset = CropDataset(entries, tfm)
+    loader = DataLoader(
+        crop_dataset,
+        batch_size=MAX_BATCH_SIZE,
+        shuffle=False,
+        num_workers=NUM_WORKERS,
+        pin_memory=True,
+        prefetch_factor=2,
+    )
+
+    # Build sorted list of (project_dir, start, end) for flushing
+    project_order = sorted(project_ranges.items(), key=lambda x: x[1][0])
+
+    # Accumulators for current project
+    proj_idx = 0
+    cur_project, (cur_start, cur_end) = project_order[proj_idx]
+    cur_filenames = []
+    cur_bbox_indices = []
+    cur_embeddings = []
+
+    total_processed = 0
     total_errors = 0
 
-    for project_dir in tqdm(project_dirs, desc="Projects"):
-        try:
-            detections_path = os.path.join(project_dir, DETECTIONS_FILENAME)
-            if not os.path.exists(detections_path):
-                continue
+    with torch.no_grad():
+        for batch_indices, batch_tensors, batch_valid in tqdm(loader, desc="Extracting"):
+            # Run valid crops through GPU
+            valid_mask = batch_valid.bool()
+            if valid_mask.any():
+                valid_tensors = batch_tensors[valid_mask].to(device, non_blocking=True)
+                out = model(valid_tensors)
+                embs = F.normalize(out.float(), dim=-1).cpu().numpy()
 
-            with open(detections_path, 'r') as f:
-                detections = json.load(f)
+            # Distribute results back per-entry
+            emb_offset = 0
+            for i in range(len(batch_indices)):
+                global_idx = batch_indices[i].item()
+                is_valid = batch_valid[i].item()
 
-            if should_skip_project(project_dir, detections):
-                total_skipped += 1
-                continue
+                # Flush completed projects as we pass their range
+                while global_idx >= cur_end:
+                    save_project(cur_project, cur_filenames, cur_bbox_indices, cur_embeddings)
+                    if cur_filenames:
+                        total_processed += 1
+                    cur_filenames = []
+                    cur_bbox_indices = []
+                    cur_embeddings = []
+                    proj_idx += 1
+                    cur_project, (cur_start, cur_end) = project_order[proj_idx]
 
-            filenames, bbox_indices, embeddings = extract_project_embeddings(model, project_dir, detections, tfm, device)
+                if is_valid:
+                    project_dir, img_name, bbox_idx, _ = entries[global_idx]
+                    cur_filenames.append(img_name)
+                    cur_bbox_indices.append(bbox_idx)
+                    cur_embeddings.append(embs[emb_offset:emb_offset + 1])
+                    emb_offset += 1
 
-            if len(filenames) == 0:
-                continue
-
-            # Atomic write
-            embeddings_path = os.path.join(project_dir, EMBEDDINGS_FILENAME)
-            tmp_path = embeddings_path + ".tmp.npz"
-            np.savez(tmp_path,
-                     filenames=np.array(filenames),
-                     bbox_indices=np.array(bbox_indices),
-                     embeddings=embeddings)
-            os.replace(tmp_path, embeddings_path)
-
-            total_processed += 1
-
-        except Exception as e:
-            tqdm.write(f"Error processing {project_dir}: {e}")
-            total_errors += 1
+    # Flush last project
+    save_project(cur_project, cur_filenames, cur_bbox_indices, cur_embeddings)
+    if cur_filenames:
+        total_processed += 1
 
     print(f"\nDone. Processed: {total_processed}, Skipped: {total_skipped}, Errors: {total_errors}")

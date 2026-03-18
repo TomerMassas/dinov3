@@ -17,11 +17,11 @@ from dinov3.configs.config import DinoV3SetupArgs
 from dinov3.data import MaskingGenerator, SamplerType, collate_data_and_cast, make_data_loader
 from dinov3.train.cosine_lr_scheduler import CosineScheduler
 from dinov3.train.ssl_meta_arch import SSLMetaArch
-from dinov3.checkpointer import save_checkpoint, keep_last_n_checkpoints
+from dinov3.checkpointer import save_checkpoint, keep_last_n_checkpoints, load_checkpoint, find_latest_checkpoint
 
 from train_pictime.run_name import make_run_name
 from train_pictime.pictime_dataset import PicTimeImageDataset
-from train_pictime.wandb_logger import init_wandb, log_wandb
+from train_pictime.wandb_logger import init_wandb, log_wandb, find_wandb_run_id_by_name
 from train_pictime.eval.evaluator import Evaluator, load_eval_config
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -35,7 +35,7 @@ def make_setup_args(args) -> DinoV3SetupArgs:
     )
 
 
-def parse_args():
+def parse_args(resume: bool = False):
     debug_defaults = dict(
         config_file=str(REPO_ROOT / "train_pictime/pictime_vitl_im1k_lin834.yaml"),
         output_dir="/data/AI/Tomer/dinov3/train_pictime/experiments",
@@ -54,22 +54,39 @@ def parse_args():
         args = SimpleNamespace(**debug_defaults)
     else:
         args = p.parse_args()
+    args.resume = resume
     return args
 
 
-def add_version_suffix(args):
-    base_dir = Path(args.output_dir)
-    existing_versions = []
+def _find_version_dirs(base_dir: Path):
+    """Return list of (version_num, path) sorted ascending."""
+    versions = []
     if base_dir.exists():
         for folder in base_dir.iterdir():
             if folder.is_dir() and folder.name.startswith("V"):
                 try:
-                    version_num = int(folder.name[1:])
-                    existing_versions.append(version_num)
+                    versions.append((int(folder.name[1:]), folder))
                 except ValueError:
                     continue
-    next_version = max(existing_versions, default=0) + 1
+    versions.sort()
+    return versions
+
+
+def add_version_suffix(args):
+    base_dir = Path(args.output_dir)
+    versions = _find_version_dirs(base_dir)
+    next_version = (versions[-1][0] + 1) if versions else 1
     args.output_dir = str(base_dir / f"V{next_version}")
+    return args
+
+
+def use_latest_version_dir(args):
+    """Point output_dir to the latest existing V{n} directory (for resume)."""
+    base_dir = Path(args.output_dir)
+    versions = _find_version_dirs(base_dir)
+    if not versions:
+        raise RuntimeError(f"--resume: no version dirs found in {base_dir}")
+    args.output_dir = str(versions[-1][1])
     return args
 
 
@@ -208,9 +225,22 @@ def safety_check_eval(cfg, evaluator: Evaluator):
         raise Exception
 
 
+def _save_wandb_run_id(output_dir: str, run_id: str):
+    Path(output_dir, "wandb_run_id.txt").write_text(run_id)
+
+
+def _load_wandb_run_id(output_dir: str) -> str | None:
+    p = Path(output_dir, "wandb_run_id.txt")
+    return p.read_text().strip() if p.exists() else None
+
+
 def main():
-    args = parse_args()
-    args = add_version_suffix(args)
+    resume_training = True
+    args = parse_args(resume=resume_training)
+    if resume_training:
+        args = use_latest_version_dir(args)
+    else:
+        args = add_version_suffix(args)
     setup_job(output_dir=args.output_dir, seed=0)
     setup_args = DinoV3SetupArgs(config_file=args.config_file, output_dir=args.output_dir, opts=[])
     cfg = setup_config(setup_args, strict_cfg=False)
@@ -222,18 +252,29 @@ def main():
     run_name = make_run_name(cfg, effective_bs=target_batch_size)
     print("Run name:", run_name)
 
-    run = init_wandb(cfg, output_dir=args.output_dir, run_name=run_name)
+    # W&B: resume existing run or start new one
+    if args.resume:
+        wandb_run_id = _load_wandb_run_id(args.output_dir)
+        if wandb_run_id is None:
+            print("No wandb_run_id.txt found, searching W&B for run name...")
+            wandb_run_id = find_wandb_run_id_by_name(run_name)
+            if wandb_run_id is None:
+                print("WARNING: no existing W&B run found, starting new W&B run")
+        run = init_wandb(cfg, output_dir=args.output_dir, run_name=run_name, resume_id=wandb_run_id)
+    else:
+        run = init_wandb(cfg, output_dir=args.output_dir, run_name=run_name)
+    if run is not None:
+        _save_wandb_run_id(args.output_dir, run.id)
+
     eval_cfg = load_eval_config(str(Path(__file__).resolve().parent / "eval/eval_config.yaml"))
     evaluator = Evaluator(eval_cfg, cfg, wandb_run=run)
     safety_check_eval(eval_cfg.cfg, evaluator)
 
     model = build_model(cfg)
     model.init_weights()
-    model.train()
 
-    # Data
-    data_loader = build_data_loader(cfg, model, train_list=args.train_list, start_iter=0)
-    it_data = iter(data_loader)
+    # Determine start iteration (will be overwritten if resuming from checkpoint)
+    start_iter = 0
 
     # --- Option A: Gradient Accumulation Setup ---
     # NOTE: DINOv3 is unstable at small batch sizes (e.g., 16).
@@ -259,11 +300,28 @@ def main():
     # Optim + schedules
     optimizer = torch.optim.AdamW(model.get_params_groups(), betas=(cfg.optim.adamw_beta1, cfg.optim.adamw_beta2))
 
+    # Resume from checkpoint if requested
+    if args.resume:
+        ckpt_dir = Path(args.output_dir) / "ckpt"
+        latest_ckpt = find_latest_checkpoint(ckpt_dir)
+        if latest_ckpt is None:
+            raise RuntimeError(f"--resume: no checkpoint found in {ckpt_dir}")
+        print(f"Resuming from checkpoint: {latest_ckpt}")
+        start_iter = load_checkpoint(latest_ckpt, model=model, optimizer=optimizer) + 1
+        print(f"Resuming training from iteration {start_iter}")
+
+    model.train()
+
+    # Data — advance sampler to skip already-seen samples
+    data_loader = build_data_loader(cfg, model, train_list=args.train_list, start_iter=start_iter * accum_steps)
+    it_data = iter(data_loader)
+
     # NOTE: Pass max_iters to build_schedulers to ensure LR decay is spread over the WHOLE training run.
     lr_s, wd_s, mom_s, ttemp_s, lastlr_s = build_schedulers(cfg, total_iters=max_iters)
 
     pbar = tqdm(
         total=max_iters,
+        initial=start_iter,
         desc="Training",
         unit="iter",
         file=sys.stdout,
@@ -275,7 +333,7 @@ def main():
     optimizer.zero_grad(set_to_none=True)
 
     # Loop over optimizer updates
-    for it in range(max_iters):
+    for it in range(start_iter, max_iters):
 
         lr = float(lr_s[it])
         wd = float(wd_s[it])
