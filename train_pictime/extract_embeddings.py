@@ -169,47 +169,6 @@ MAX_BATCH_SIZE = 64
 NUM_WORKERS = 8
 DEBUG = False
 
-
-
-############################################################################################################
-dataset_root = Path("/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]")
-project_dirs = sorted([entry.path for entry in os.scandir(dataset_root) if entry.is_dir()])
-missing_detection = 0
-exists_detection = 0
-missing_embbd = 0
-exists_embbd = 0
-nomatch = 0
-match =0
-
-for project_dir in tqdm(project_dirs, desc="Scanning"):
-    detections_path = os.path.join(project_dir, DETECTIONS_FILENAME)
-    embeddings_path = os.path.join(project_dir, EMBEDDINGS_FILENAME)
-
-    if not os.path.exists(detections_path):
-        missing_detection += 1
-    else:
-        exists_detection += 1
-        with open(detections_path, 'r') as f:
-            detections = json.load(f)
-
-    if not os.path.exists(embeddings_path):
-        missing_embbd += 1
-    else:
-        exists_embbd += 1
-        data = np.load(embeddings_path)
-
-    if os.path.exists(detections_path) and os.path.exists(embeddings_path):
-        if len(data["embeddings"]) == count_total_bboxes(detections):
-            match += 1
-        else:
-            nomatch += 1
-
-print("detections:", exists_detection/(missing_detection+exists_detection))
-print("embeddings:", exists_embbd/(exists_embbd+missing_embbd))
-print("match:", match/(match+nomatch))
-
-exit(123123123)
-##########################################################################################################
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
