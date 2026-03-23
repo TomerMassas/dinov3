@@ -38,7 +38,11 @@ def embedding_variance_and_effective_rank(
     X = E - E.mean(dim=0, keepdim=True)
     C = (X.T @ X) / max(N - 1, 1)
 
-    evals = torch.linalg.eigvalsh(C).clamp_min(0.0)
+    try:
+        evals = torch.linalg.eigvalsh(C).clamp_min(0.0)
+    except torch._C._LinAlgError:
+        out.update({"eff_rank_pr": 0.0, "eff_rank_entropy": 0.0, "top1_var_ratio": 0.0})
+        return out
     evals, _ = torch.sort(evals, descending=True)
 
     s1 = float(evals.sum().item())

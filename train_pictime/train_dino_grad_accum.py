@@ -385,6 +385,11 @@ def main():
         if cfg.optim.clip_grad:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=cfg.optim.clip_grad)
 
+        if not math.isfinite(accum_loss):
+            print(f"[WARN] NaN/Inf loss at iter {it}, skipping update")
+            optimizer.zero_grad(set_to_none=True)
+            continue
+
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
         model.update_ema(mom)

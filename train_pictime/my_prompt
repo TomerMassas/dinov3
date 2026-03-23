@@ -1,1 +1,11 @@
-i want to start with hdbscan. first i want you to give me a brief introduction to hdbscan and how it works.
+nohup: ignoring input
+Using debug args: True
+I20260318 08:38:52 560054 dinov3 torch_distributed_wrapper.py:255] PyTorch distributed environment: manual job using 127.0.0.1:38043 (rank=0, world size=1)
+W20260318 08:38:52 560054 py.warnings warnings.py:110] /data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/distributed/c10d_logger.py:83: UserWarning: barrier(): using the device under current context. You can specify `device_id` in `init_process_group` to mute this warning.
+  return func(*args, **kwargs)
+
+[rank0]:[W318 08:38:52.334946972 ProcessGroupNCCL.cpp:5138] Guessing device ID based on global rank. This can cause a hang if rank to GPU mapping is heterogeneous. You can specify device_id in init_process_group()
+fatal: not a git repository (or any parent up to mount point /)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+I20260318 08:38:52 560054 dinov3 config.py:209] git:
+  sha: N/A, status: clean, branch: N/Aread
