@@ -235,7 +235,7 @@ def _load_wandb_run_id(output_dir: str) -> str | None:
 
 
 def main():
-    resume_training = True
+    resume_training = False
     args = parse_args(resume=resume_training)
     if resume_training:
         args = use_latest_version_dir(args)
@@ -248,7 +248,7 @@ def main():
     cfg.train.output_dir = args.output_dir
     cfg.student.pretrained_weights = args.pretrained
 
-    target_batch_size = 256  # also used below for grad accumulation
+    target_batch_size = 1024  # also used below for grad accumulation
     run_name = make_run_name(cfg, effective_bs=target_batch_size)
     print("Run name:", run_name)
 

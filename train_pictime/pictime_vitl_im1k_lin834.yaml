@@ -8,7 +8,7 @@ MODEL:
   WEIGHTS: ''
   DTYPE: float32
 compute_precision:
-  param_dtype: fp16
+  param_dtype: bf16
   reduce_dtype: fp32
   sharding_strategy: SHARD_GRAD_OP
 dino:
@@ -81,7 +81,7 @@ student:
   pos_embed_rope_shift_coords: null
   pos_embed_rope_jitter_coords: null
   pos_embed_rope_rescale_coords: null
-  pos_embed_rope_dtype: fp16
+  pos_embed_rope_dtype: bf16
   fp8_enabled: False  # Convert Linear layers to operate in fp8 precision
   fp8_filter: "blocks"  # Regex that must appear in module path; empty means everything
 teacher:
