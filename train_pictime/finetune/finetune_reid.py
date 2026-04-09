@@ -17,8 +17,8 @@ from dinov3.train.cosine_lr_scheduler import CosineScheduler
 from train_pictime.wandb_logger import init_wandb, log_wandb
 from train_pictime.finetune.supcon_loss import SupConLoss
 from train_pictime.finetune.reid_dataset import (
-    load_project, build_global_identity_map, ReIDCropDataset,
-    PKBatchSampler, train_val_split, get_train_transform, get_val_transform,
+    load_index, build_global_identity_map, ReIDCropDataset,
+    PKBatchSampler, train_val_split, get_train_transform,
 )
 from train_pictime.finetune.reid_evaluator import ReIDEvaluator
 
@@ -60,9 +60,11 @@ def load_backbone(pretrain_cfg_path: str, ckpt_path: str, which: str = "teacher"
     Builds SSLMetaArch the same way the pretrain script does, loads the
     checkpoint, then extracts the teacher/student backbone.
     """
+    dummy_dir = "/tmp/finetune_dummy"
+    Path(dummy_dir).mkdir(parents=True, exist_ok=True)
     setup_args = DinoV3SetupArgs(
         config_file=pretrain_cfg_path,
-        output_dir="/tmp/finetune_dummy",
+        output_dir=dummy_dir,
         opts=[],
     )
     cfg = setup_config(setup_args, strict_cfg=False)
@@ -90,9 +92,11 @@ def load_backbone(pretrain_cfg_path: str, ckpt_path: str, which: str = "teacher"
     backbone = mdl["backbone"]
     embed_dim = backbone.embed_dim
 
-    # Detach from SSLMetaArch to free memory
+    # Cleanup
     del model
     torch.cuda.empty_cache()
+    import shutil
+    shutil.rmtree(dummy_dir, ignore_errors=True)
 
     return backbone, embed_dim
 
@@ -197,7 +201,7 @@ def main():
     # W&B
     run_name = f"finetune_reid_P{cfg.P}_K{cfg.K}_lr{cfg.lr:g}"
     run = init_wandb(
-        OmegaConf.create({"dummy": True}),  # flat config for wandb
+        cfg,
         output_dir=output_dir,
         run_name=run_name,
     )
@@ -212,25 +216,30 @@ def main():
 
     proj_head = build_projection_head(embed_dim, cfg.proj_hidden_dim, cfg.proj_output_dim).cuda()
 
-    # Data
-    print("Loading dataset...")
-    data_base = Path(cfg.data_base_path)
-    project_dirs = sorted([d for d in data_base.iterdir() if d.is_dir()])
-    print(f"Found {len(project_dirs)} projects")
+    # Data — load from pre-built index (created by build_index.py)
+    print("Loading index...")
+    import numpy as np
+    index_path = Path(cfg.data_base_path) / "reid_index.npz"
+    image_paths, bboxes, project_ids, cluster_ids = load_index(index_path)
+    print(f"Total samples: {len(image_paths)}")
 
-    train_dirs, val_dirs = train_val_split(project_dirs, cfg.val_ratio, cfg.seed)
-    print(f"Train: {len(train_dirs)} projects, Val: {len(val_dirs)} projects")
+    # Split by project
+    unique_projects = sorted(set(project_ids))
+    train_project_ids, val_project_ids = train_val_split(unique_projects, cfg.val_ratio, cfg.seed)
+    train_mask = np.isin(project_ids, train_project_ids)
+    val_mask = np.isin(project_ids, val_project_ids)
+    print(f"Train: {len(train_project_ids)} projects ({train_mask.sum()} samples), "
+          f"Val: {len(val_project_ids)} projects ({val_mask.sum()} samples)")
 
-    # Load train samples
-    train_samples = []
-    for d in tqdm(train_dirs, desc="Loading train projects", file=sys.stdout):
-        train_samples.extend(load_project(d))
-    print(f"Train samples: {len(train_samples)}")
-
-    id_map, train_labels = build_global_identity_map(train_samples)
-    train_dataset = ReIDCropDataset(train_samples, train_labels, transform=get_train_transform(), min_k=cfg.K)
+    # Train dataset
+    train_labels = build_global_identity_map(project_ids[train_mask], cluster_ids[train_mask])
+    train_dataset = ReIDCropDataset(
+        image_paths[train_mask], bboxes[train_mask], project_ids[train_mask],
+        train_labels, transform=get_train_transform(), min_k=cfg.K,
+    )
     print(f"Valid projects for sampling: {len(train_dataset.valid_projects)}")
-    print(f"Valid identities (>= {cfg.K} samples): {len([v for v in train_dataset.identity_to_indices.values() if len(v) >= cfg.K])}")
+    print(f"Valid identities (>= {cfg.K} samples): "
+          f"{len([v for v in train_dataset.identity_to_indices.values() if len(v) >= cfg.K])}")
 
     # Compute iterations
     num_valid_identities = len([v for v in train_dataset.identity_to_indices.values() if len(v) >= cfg.K])
@@ -248,7 +257,10 @@ def main():
 
     # Eval
     evaluator = ReIDEvaluator(
-        val_project_dirs=val_dirs,
+        image_paths=image_paths[val_mask],
+        bboxes=bboxes[val_mask],
+        project_ids=project_ids[val_mask],
+        cluster_ids=cluster_ids[val_mask],
         eval_every=cfg.eval_every,
         seed=cfg.seed,
         min_k=cfg.K,

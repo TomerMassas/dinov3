@@ -9,7 +9,7 @@ import torch
 import torch.nn.functional as F
 
 from train_pictime.finetune.reid_dataset import (
-    ReIDCropDataset, ReIDSample, load_project, build_global_identity_map, get_val_transform,
+    ReIDCropDataset, build_global_identity_map, get_val_transform,
 )
 from train_pictime.wandb_logger import log_wandb
 
@@ -80,7 +80,10 @@ class ReIDEvaluator:
 
     def __init__(
         self,
-        val_project_dirs: list[Path],
+        image_paths,
+        bboxes,
+        project_ids,
+        cluster_ids,
         eval_every: int,
         seed: int,
         device: str = "cuda",
@@ -91,16 +94,14 @@ class ReIDEvaluator:
         self.device = device
         self.batch_size = batch_size
 
-        # Load val data
-        all_samples: list[ReIDSample] = []
-        for d in val_project_dirs:
-            all_samples.extend(load_project(d))
-
-        if not all_samples:
+        if len(image_paths) == 0:
             raise ValueError("No validation samples found")
 
-        id_map, labels = build_global_identity_map(all_samples)
-        self.dataset = ReIDCropDataset(all_samples, labels, transform=get_val_transform(), min_k=min_k)
+        labels = build_global_identity_map(project_ids, cluster_ids)
+        self.dataset = ReIDCropDataset(
+            image_paths, bboxes, project_ids, labels,
+            transform=get_val_transform(), min_k=min_k,
+        )
 
         # Split query / gallery: 1 query per identity, rest gallery
         rng = random.Random(seed)

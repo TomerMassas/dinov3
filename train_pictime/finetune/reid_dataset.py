@@ -27,6 +27,20 @@ class ReIDSample(NamedTuple):
 # Loading
 # ---------------------------------------------------------------------------
 
+def load_index(index_path: str | Path):
+    """Load pre-built .npz index (created by build_index.py).
+
+    Returns:
+        image_paths: np.ndarray of str [N]
+        bboxes:      np.ndarray float32 [N, 4]
+        project_ids: np.ndarray of str [N]
+        cluster_ids: np.ndarray int32 [N]
+    """
+    import numpy as np
+    data = np.load(index_path, allow_pickle=True)
+    return data["image_paths"], data["bboxes"], data["project_ids"], data["cluster_ids"]
+
+
 def load_project(project_dir: Path) -> list[ReIDSample]:
     """Load samples from a single project directory.
 
@@ -70,21 +84,25 @@ def load_project(project_dir: Path) -> list[ReIDSample]:
     return samples
 
 
-def build_global_identity_map(samples: list[ReIDSample]) -> tuple[dict[tuple[str, int], int], list[int]]:
+def build_global_identity_map(project_ids, cluster_ids):
     """Assign global integer IDs from (project_id, cluster_id) pairs.
 
+    Args:
+        project_ids: np.ndarray of str [N]
+        cluster_ids: np.ndarray of int [N]
+
     Returns:
-        id_map: {(project_id, cluster_id): global_int_id}
-        labels: list of global_int_id for each sample (same order as input)
+        labels: np.ndarray int32 [N] — global identity ID per sample
     """
+    import numpy as np
     id_map: dict[tuple[str, int], int] = {}
-    labels = []
-    for s in samples:
-        key = (s.project_id, s.cluster_id)
+    labels = np.empty(len(project_ids), dtype=np.int32)
+    for i in range(len(project_ids)):
+        key = (str(project_ids[i]), int(cluster_ids[i]))
         if key not in id_map:
             id_map[key] = len(id_map)
-        labels.append(id_map[key])
-    return id_map, labels
+        labels[i] = id_map[key]
+    return labels
 
 
 # ---------------------------------------------------------------------------
@@ -94,38 +112,46 @@ def build_global_identity_map(samples: list[ReIDSample]) -> tuple[dict[tuple[str
 class ReIDCropDataset(Dataset):
     """Dataset that returns cropped person bboxes with global identity labels."""
 
-    def __init__(self, samples: list[ReIDSample], labels: list[int], transform=None, min_k: int = 1):
-        self.samples = samples
+    def __init__(self, image_paths, bboxes, project_ids, labels, transform=None, min_k: int = 1):
+        """
+        Args:
+            image_paths: np.ndarray of str [N]
+            bboxes:      np.ndarray float32 [N, 4]
+            project_ids: np.ndarray of str [N]
+            labels:      np.ndarray int32 [N] — global identity IDs
+        """
+        self.image_paths = image_paths
+        self.bboxes = bboxes
+        self.project_ids = project_ids
         self.labels = labels
         self.transform = transform
 
         # Build lookups
         self.identity_to_indices: dict[int, list[int]] = defaultdict(list)
-        for idx, label in enumerate(labels):
-            self.identity_to_indices[label].append(idx)
+        for idx in range(len(labels)):
+            self.identity_to_indices[int(labels[idx])].append(idx)
 
-        # Map project_id -> set of identity IDs that have >= min_k samples
+        # Map project_id -> identity IDs that have >= min_k samples
         self.project_to_identities: dict[str, list[int]] = defaultdict(list)
         seen = set()
-        for idx, s in enumerate(samples):
-            gid = labels[idx]
+        for idx in range(len(labels)):
+            gid = int(labels[idx])
             if gid not in seen and len(self.identity_to_indices[gid]) >= min_k:
-                self.project_to_identities[s.project_id].append(gid)
+                self.project_to_identities[str(project_ids[idx])].append(gid)
                 seen.add(gid)
 
         # Projects that have at least 1 valid identity
         self.valid_projects = [p for p, ids in self.project_to_identities.items() if len(ids) > 0]
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.labels)
 
     def __getitem__(self, idx):
-        s = self.samples[idx]
-        label = self.labels[idx]
+        label = int(self.labels[idx])
 
-        img = Image.open(s.image_path).convert("RGB")
+        img = Image.open(str(self.image_paths[idx])).convert("RGB")
         w, h = img.size
-        x1, y1, x2, y2 = s.bbox
+        x1, y1, x2, y2 = self.bboxes[idx]
         crop = img.crop((int(x1 * w), int(y1 * h), int(x2 * w), int(y2 * h)))
 
         if self.transform is not None:
@@ -178,14 +204,14 @@ class PKBatchSampler(Sampler):
 # ---------------------------------------------------------------------------
 
 def train_val_split(
-    project_dirs: list[Path], val_ratio: float, seed: int
-) -> tuple[list[Path], list[Path]]:
-    """Deterministic split of project directories into train and val."""
+    items: list, val_ratio: float, seed: int
+) -> tuple[list, list]:
+    """Deterministic split into train and val."""
     rng = random.Random(seed)
-    dirs = list(project_dirs)
-    rng.shuffle(dirs)
-    n_val = max(1, int(len(dirs) * val_ratio))
-    return dirs[n_val:], dirs[:n_val]
+    items = list(items)
+    rng.shuffle(items)
+    n_val = max(1, int(len(items) * val_ratio))
+    return items[n_val:], items[:n_val]
 
 
 # ---------------------------------------------------------------------------

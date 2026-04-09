@@ -1,2 +1,1 @@
-1. this is the weights path: /data/AI/Tomer/dinov3/train_pictime/experiments/V9/ckpt/15000
-2. does the pk smapleer smaples in order or is there some rnadomizing?
+in line 222 when you load the index json,
