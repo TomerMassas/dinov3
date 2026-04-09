@@ -1,0 +1,42 @@
+# --- Paths ---
+data_base_path: "/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]"
+pretrain_config: "train_pictime/pictime_vitl_im1k_lin834.yaml"
+pretrained_weights: "/data/AI/Tomer/dinov3/train_pictime/experiments/V9/ckpt/15000"
+output_dir: "/data/AI/Tomer/dinov3/train_pictime/finetune_experiments"
+
+# --- Model ---
+backbone_which: "teacher"    # teacher has smoother, higher-quality features (EMA of student)
+proj_hidden_dim: 384
+proj_output_dim: 128
+
+# --- Freeze modes ---
+# Mode A (frozen backbone): freeze_backbone=true, unfreeze_after=0
+#   Only the projection head trains. Backbone stays fully frozen.
+# Mode C (progressive unfreezing): freeze_backbone=true, unfreeze_after=N
+#   Head trains first. At iteration N, the last unfreeze_n_blocks transformer
+#   blocks + final layer norm are unfrozen with a lower lr (lr_backbone).
+freeze_backbone: true
+unfreeze_after: 0            # iteration to unfreeze (0 = never)
+unfreeze_n_blocks: 2         # last N transformer blocks to unfreeze
+
+# --- Training ---
+num_epochs: 10
+P: 16                        # projects per batch (1 identity each)
+K: 4                         # crops per identity -> batch_size = P*K = 64
+num_workers: 4
+lr: 1.0e-3                   # projection head LR
+lr_backbone: 1.0e-5          # unfrozen backbone LR (only used in mode C)
+min_lr: 1.0e-6               # final LR after cosine decay
+weight_decay: 1.0e-4
+warmup_iters: 500            # gradual LR ramp-up to avoid unstable early gradients
+temperature: 0.07            # SupCon temperature
+clip_grad: 1.0
+seed: 42
+
+# --- Eval ---
+val_ratio: 0.15
+eval_every: 1000
+
+# --- Checkpointing ---
+ckpt_every: 1000
+ckpt_max_keep: 3             # keep best 3 by eval metric (mAP), not most recent

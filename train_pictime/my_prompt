@@ -1,2 +1,2 @@
-i put the training logs of the training in train_pictime/train_dino_2026-03-23_1546.log
-for some reason the training seems to now work all the loss is NaN. i do not understand why. please read the logs and help me understand
+1. this is the weights path: /data/AI/Tomer/dinov3/train_pictime/experiments/V9/ckpt/15000
+2. does the pk smapleer smaples in order or is there some rnadomizing?

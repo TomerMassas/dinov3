@@ -52,7 +52,8 @@ def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None, resume_id: 
 def log_wandb(run: Any, metrics: Dict[str, float], step: int) -> None:
     if run is None:
         return
-    run.log(metrics, step=step)
+    metrics["train/iter"] = step
+    run.log(metrics)
 
 
 
@@ -86,7 +87,8 @@ def log_prefixed(run: Any, step: int, items: Iterable[Tuple[str, Dict[str, Any]]
     merged: Dict[str, float] = {}
     for prefix, d in items:
         merged.update(prefix_dict(d, prefix))
-    run.log(merged, step=step)
+    merged["train/iter"] = step
+    run.log(merged)
 
 
 def log_prefixed_variant(
@@ -107,7 +109,8 @@ def log_prefixed_variant(
             fv = _as_float(v)
             if fv is not None:
                 merged[f"{prefix}{k}/{variant}"] = fv
-    run.log(merged, step=step)
+    merged["train/iter"] = step
+    run.log(merged)
 
 
 _paired_history: Dict[str, Dict[str, list]] = {}
@@ -147,7 +150,8 @@ def log_paired(
             xname="train/iter",
         )
     if payload:
-        run.log(payload, step=step)
+        payload["train/iter"] = step
+        run.log(payload)
 
 
 def log_paired_variant(
@@ -191,4 +195,5 @@ def log_paired_variant(
             xname="train/iter",
         )
     if payload:
-        run.log(payload, step=step)
+        payload["train/iter"] = step
+        run.log(payload)
