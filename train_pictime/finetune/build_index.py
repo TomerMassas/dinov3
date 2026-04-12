@@ -58,7 +58,7 @@ def build_index(data_base: Path) -> list[dict]:
                     continue
 
                 bbox = det_list[bbox_idx]["bbox"]
-                image_path = str(project_dir / fname)
+                image_path = str(project_dir / "images" / fname)
                 samples.append({
                     "image_path": image_path,
                     "bbox": bbox,

@@ -34,9 +34,9 @@ clip_grad: 1.0
 seed: 42
 
 # --- Eval ---
-val_ratio: 0.15
-eval_every: 1000
+val_ratio: 0.05
+silhouette_max_samples: 8000   # cap for stratified silhouette subsample (0 = skip)
 
 # --- Checkpointing ---
-ckpt_every: 1000
+ckpt_every: 500
 ckpt_max_keep: 3             # keep best 3 by eval metric (mAP), not most recent

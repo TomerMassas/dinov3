@@ -5,8 +5,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 import torch.nn.functional as F
+from sklearn.metrics import silhouette_score
 
 from train_pictime.finetune.reid_dataset import (
     ReIDCropDataset, build_global_identity_map, get_val_transform,
@@ -84,15 +86,16 @@ class ReIDEvaluator:
         bboxes,
         project_ids,
         cluster_ids,
-        eval_every: int,
         seed: int,
         device: str = "cuda",
         batch_size: int = 64,
         min_k: int = 2,  # identities need >= 2 samples (1 query + 1 gallery)
+        silhouette_max_samples: int = 8000,
     ):
-        self.eval_every = eval_every
         self.device = device
         self.batch_size = batch_size
+        self.seed = seed
+        self.silhouette_max_samples = silhouette_max_samples
 
         if len(image_paths) == 0:
             raise ValueError("No validation samples found")
@@ -133,13 +136,61 @@ class ReIDEvaluator:
 
             out = backbone(imgs)
             out = out["x_norm_clstoken"] if isinstance(out, dict) else out
-            out = proj_head(out)
-            out = F.normalize(out.float(), dim=-1)
+            out = proj_head(out.float())
+            out = F.normalize(out, dim=-1)
 
             embs.append(out.cpu())
             labs.append(labels)
 
         return torch.cat(embs), torch.cat(labs)
+
+    def _compute_silhouette(
+        self, embs: torch.Tensor, labels: torch.Tensor,
+    ) -> float | None:
+        """Silhouette score on a stratified subsample (k per identity)."""
+        cap = self.silhouette_max_samples
+        if cap <= 0:
+            return None
+
+        embs_np = embs.numpy()
+        labels_np = labels.numpy()
+
+        # Group indices by identity, discard ids with < 4 samples
+        id_to_idx: dict[int, list[int]] = defaultdict(list)
+        for i, lab in enumerate(labels_np):
+            id_to_idx[int(lab)].append(i)
+        id_to_idx = {gid: idx for gid, idx in id_to_idx.items() if len(idx) >= 4}
+
+        if len(id_to_idx) < 2:
+            return None
+
+        n_ids = len(id_to_idx)
+        k = max(4, cap // n_ids)
+
+        rng = random.Random(self.seed)
+        per_id: list[tuple[int, list[int]]] = []
+        for gid in sorted(id_to_idx):
+            idx = id_to_idx[gid]
+            take = min(k, len(idx))
+            per_id.append((gid, rng.sample(idx, take) if take < len(idx) else list(idx)))
+
+        # If over cap, shuffle identities and keep whole groups until budget fills
+        chosen: list[int] = []
+        total = sum(len(v) for _, v in per_id)
+        if total <= cap:
+            for _, v in per_id:
+                chosen.extend(v)
+        else:
+            rng.shuffle(per_id)
+            for _, v in per_id:
+                if len(chosen) + len(v) > cap:
+                    break
+                chosen.extend(v)
+
+        if len(set(labels_np[chosen])) < 2:
+            return None
+
+        return float(silhouette_score(embs_np[chosen], labels_np[chosen], metric="cosine"))
 
     @torch.no_grad()
     def maybe_eval(
@@ -150,7 +201,7 @@ class ReIDEvaluator:
         wandb_run: Any = None,
     ) -> dict[str, float] | None:
         """Run evaluation if due this iteration. Returns metrics or None."""
-        if self.eval_every <= 0 or iteration <= 0 or iteration % self.eval_every != 0:
+        if iteration <= 0:
             return None
 
         was_training_bb = backbone.training
@@ -161,19 +212,30 @@ class ReIDEvaluator:
 
         metrics = compute_cmc_map(query_embs, query_labels, gallery_embs, gallery_labels)
 
+        # Silhouette score on combined query+gallery pool
+        all_embs = torch.cat([query_embs, gallery_embs], dim=0)
+        all_labels = torch.cat([query_labels, gallery_labels], dim=0)
+        sil = self._compute_silhouette(all_embs, all_labels)
+        if sil is not None:
+            metrics["silhouette"] = sil
+
         # Restore training mode
         backbone.train(was_training_bb)
         proj_head.train(was_training_ph)
 
         # Log
-        log_wandb(wandb_run, {
+        log_dict = {
             "eval/rank1": metrics["rank1"],
             "eval/rank5": metrics["rank5"],
             "eval/rank10": metrics["rank10"],
             "eval/mAP": metrics["mAP"],
-        }, step=iteration)
+        }
+        if "silhouette" in metrics:
+            log_dict["eval/silhouette"] = metrics["silhouette"]
+        log_wandb(wandb_run, log_dict, step=iteration)
 
+        sil_str = f" Silhouette={metrics['silhouette']:.4f}" if "silhouette" in metrics else ""
         print(f"[Eval @ iter {iteration}] Rank-1={metrics['rank1']:.4f} "
-              f"Rank-5={metrics['rank5']:.4f} mAP={metrics['mAP']:.4f}")
+              f"Rank-5={metrics['rank5']:.4f} mAP={metrics['mAP']:.4f}{sil_str}")
 
         return metrics

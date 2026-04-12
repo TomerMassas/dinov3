@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import OmegaConf
 from tqdm import tqdm
+import numpy as np
 
 from dinov3.configs import setup_config, setup_job
 from dinov3.configs.config import DinoV3SetupArgs
@@ -168,16 +169,16 @@ class BestCheckpointTracker:
             if worst_path.exists():
                 worst_path.unlink()
 
-        path = self.ckpt_dir / f"ckpt_iter{iteration}_mAP{metric_value:.4f}.pt"
+        path = self.ckpt_dir / f"ckpt_iter{iteration}_sil{metric_value:.4f}.pt"
         torch.save({
             "iteration": iteration,
-            "mAP": metric_value,
+            "silhouette": metric_value,
             "backbone_state_dict": backbone.state_dict(),
             "proj_head_state_dict": proj_head.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
         }, path)
         self.entries.append((metric_value, path))
-        print(f"[Checkpoint] Saved {path.name} (mAP={metric_value:.4f})")
+        print(f"[Checkpoint] Saved {path.name} (silhouette={metric_value:.4f})")
 
 
 # ---------------------------------------------------------------------------
@@ -201,10 +202,10 @@ def main():
     # W&B
     run_name = f"finetune_reid_P{cfg.P}_K{cfg.K}_lr{cfg.lr:g}"
     run = init_wandb(
-        cfg,
-        output_dir=output_dir,
-        run_name=run_name,
-    )
+                        cfg,
+                        output_dir=output_dir,
+                        run_name=run_name,
+                    )
 
     # Model
     print("Loading pretrained backbone...")
@@ -218,9 +219,12 @@ def main():
 
     # Data — load from pre-built index (created by build_index.py)
     print("Loading index...")
-    import numpy as np
     index_path = Path(cfg.data_base_path) / "reid_index.npz"
     image_paths, bboxes, project_ids, cluster_ids = load_index(index_path)
+    ########################################################################################## TODO comment out
+    # tmp_trip = 10000
+    # image_paths, bboxes, project_ids, cluster_ids = image_paths[:tmp_trip], bboxes[:tmp_trip], project_ids[:tmp_trip], cluster_ids[:tmp_trip]
+    ##############################################################################################################################
     print(f"Total samples: {len(image_paths)}")
 
     # Split by project
@@ -234,9 +238,9 @@ def main():
     # Train dataset
     train_labels = build_global_identity_map(project_ids[train_mask], cluster_ids[train_mask])
     train_dataset = ReIDCropDataset(
-        image_paths[train_mask], bboxes[train_mask], project_ids[train_mask],
-        train_labels, transform=get_train_transform(), min_k=cfg.K,
-    )
+                                    image_paths[train_mask], bboxes[train_mask], project_ids[train_mask],
+                                    train_labels, transform=get_train_transform(), min_k=cfg.K,
+                                )
     print(f"Valid projects for sampling: {len(train_dataset.valid_projects)}")
     print(f"Valid identities (>= {cfg.K} samples): "
           f"{len([v for v in train_dataset.identity_to_indices.values() if len(v) >= cfg.K])}")
@@ -261,9 +265,9 @@ def main():
         bboxes=bboxes[val_mask],
         project_ids=project_ids[val_mask],
         cluster_ids=cluster_ids[val_mask],
-        eval_every=cfg.eval_every,
         seed=cfg.seed,
         min_k=cfg.K,
+        silhouette_max_samples=cfg.silhouette_max_samples,
     )
 
     # Optimizer + scheduler
@@ -309,7 +313,7 @@ def main():
             embs = backbone(images)
             embs = embs["x_norm_clstoken"] if isinstance(embs, dict) else embs
 
-        proj = proj_head(embs)
+        proj = proj_head(embs.float())
         proj = F.normalize(proj, dim=-1)
 
         loss = criterion(proj, labels)
@@ -356,15 +360,15 @@ def main():
         # Eval + checkpoint
         if cfg.ckpt_every > 0 and it > 0 and it % cfg.ckpt_every == 0:
             metrics = evaluator.maybe_eval(backbone, proj_head, it, run)
-            if metrics is not None:
-                ckpt_tracker.maybe_save(metrics["mAP"], it, backbone, proj_head, optimizer)
+            if metrics is not None and "silhouette" in metrics:
+                ckpt_tracker.maybe_save(metrics["silhouette"], it, backbone, proj_head, optimizer)
 
     pbar.close()
 
     # Final eval
     metrics = evaluator.maybe_eval(backbone, proj_head, total_iters, run)
-    if metrics is not None:
-        ckpt_tracker.maybe_save(metrics["mAP"], total_iters, backbone, proj_head, optimizer)
+    if metrics is not None and "silhouette" in metrics:
+        ckpt_tracker.maybe_save(metrics["silhouette"], total_iters, backbone, proj_head, optimizer)
 
     if run is not None:
         run.finish()
