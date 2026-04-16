@@ -1,3 +1,6 @@
+# --- W&B ---
+wandb_project: "person-reid-finetune"
+
 # --- Paths ---
 data_base_path: "/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]"
 pretrain_config: "train_pictime/pictime_vitl_im1k_lin834.yaml"

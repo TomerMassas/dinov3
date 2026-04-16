@@ -23,13 +23,13 @@ def find_wandb_run_id_by_name(run_name: str, project: Optional[str] = None, enti
     return None
 
 
-def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None, resume_id: Optional[str] = None) -> Any:
+def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None, resume_id: Optional[str] = None, project: Optional[str] = None) -> Any:
     if wandb is None:
         return None
 
     from omegaconf import OmegaConf
 
-    project = os.environ.get("WANDB_PROJECT", "person-reid-dinov3")
+    project = project or os.environ.get("WANDB_PROJECT", "person-reid-dinov3")
     entity = os.environ.get("WANDB_ENTITY", None)
 
     resume_kwargs = {}

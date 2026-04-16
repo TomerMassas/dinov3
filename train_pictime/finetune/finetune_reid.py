@@ -22,6 +22,7 @@ from train_pictime.finetune.reid_dataset import (
     PKBatchSampler, train_val_split, get_train_transform,
 )
 from train_pictime.finetune.reid_evaluator import ReIDEvaluator
+from train_pictime.run_name import arch_to_tag
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CFG_PATH = Path(__file__).parent / "reid_config.yaml"
@@ -199,12 +200,17 @@ def main():
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     print(f"Output dir: {output_dir}")
 
-    # W&B
-    run_name = f"finetune_reid_P{cfg.P}_K{cfg.K}_lr{cfg.lr:g}"
+    # W&B — derive arch tag from pretrain config
+    pretrain_cfg = OmegaConf.load(pretrain_cfg_path)
+    arch_tag = arch_to_tag(pretrain_cfg.student.arch) + str(int(pretrain_cfg.student.patch_size))
+    batch_size = cfg.P * cfg.K
+    frozen_tag = "_frozen" if cfg.freeze_backbone and cfg.unfreeze_after <= 0 else ""
+    run_name = f"finetune_reid_{arch_tag}_bs{batch_size}{frozen_tag}"
     run = init_wandb(
                         cfg,
                         output_dir=output_dir,
                         run_name=run_name,
+                        project=cfg.wandb_project,
                     )
 
     # Model

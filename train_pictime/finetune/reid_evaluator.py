@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch.utils.data import DataLoader, Subset
 from sklearn.metrics import silhouette_score
 
 from train_pictime.finetune.reid_dataset import (
@@ -128,11 +129,19 @@ class ReIDEvaluator:
         backbone.eval()
         proj_head.eval()
 
+        subset = Subset(self.dataset, indices)
+        loader = DataLoader(
+            subset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=4,
+            pin_memory=True,
+            persistent_workers=False,
+        )
+
         embs, labs = [], []
-        for i in range(0, len(indices), self.batch_size):
-            batch_idx = indices[i:i + self.batch_size]
-            imgs = torch.stack([self.dataset[j][0] for j in batch_idx]).to(self.device)
-            labels = torch.tensor([self.dataset[j][1] for j in batch_idx])
+        for imgs, labels in loader:
+            imgs = imgs.to(self.device, non_blocking=True)
 
             out = backbone(imgs)
             out = out["x_norm_clstoken"] if isinstance(out, dict) else out
@@ -207,14 +216,14 @@ class ReIDEvaluator:
         was_training_bb = backbone.training
         was_training_ph = proj_head.training
 
-        query_embs, query_labels = self._extract(backbone, proj_head, self.query_indices)
-        gallery_embs, gallery_labels = self._extract(backbone, proj_head, self.gallery_indices)
+        all_indices = self.query_indices + self.gallery_indices
+        all_embs, all_labels = self._extract(backbone, proj_head, all_indices)
+
+        n_query = len(self.query_indices)
+        query_embs, query_labels = all_embs[:n_query], all_labels[:n_query]
+        gallery_embs, gallery_labels = all_embs[n_query:], all_labels[n_query:]
 
         metrics = compute_cmc_map(query_embs, query_labels, gallery_embs, gallery_labels)
-
-        # Silhouette score on combined query+gallery pool
-        all_embs = torch.cat([query_embs, gallery_embs], dim=0)
-        all_labels = torch.cat([query_labels, gallery_labels], dim=0)
         sil = self._compute_silhouette(all_embs, all_labels)
         if sil is not None:
             metrics["silhouette"] = sil

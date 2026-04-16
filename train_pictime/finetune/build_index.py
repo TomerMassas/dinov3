@@ -15,11 +15,14 @@ import numpy as np
 from tqdm import tqdm
 
 DATA_BASE_PATH = Path("/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]")
+FILTER_PATH = Path("/data/AI/Tomer/dinov3/train_pictime/finetune/single_cluster_projects.json")
 OUTPUT_PATH = DATA_BASE_PATH / "reid_index.npz"
 
 
 def build_index(data_base: Path) -> list[dict]:
-    project_dirs = sorted([d for d in data_base.iterdir() if d.is_dir()])
+    with open(FILTER_PATH) as f:
+        allowed = set(json.load(f))
+    project_dirs = sorted([d for d in data_base.iterdir() if d.is_dir() and d.name in allowed])
     print(f"Found {len(project_dirs)} projects")
 
     samples = []
