@@ -140,7 +140,7 @@ def maybe_unfreeze(backbone, proj_head, optimizer, iteration, cfg):
     unfrozen_params = [p for p in backbone.parameters() if p.requires_grad]
     new_optimizer = torch.optim.AdamW([
         {"params": proj_head.parameters(), "lr": cfg.lr},
-        {"params": unfrozen_params, "lr": cfg.lr_backbone},
+        {"params": unfrozen_params, "lr": cfg.lr_backbone, "lr_multiplier": cfg.lr_backbone / cfg.lr},
     ], weight_decay=cfg.weight_decay)
 
     return new_optimizer
@@ -354,11 +354,14 @@ def main():
 
         # Log
         if it % 10 == 0:
-            log_wandb(run, {
+            metrics_log = {
                 "train/iter": it,
                 "train/loss": loss.item(),
                 "train/lr": lr,
-            }, step=it)
+            }
+            if len(optimizer.param_groups) > 1:
+                metrics_log["train/lr_backbone"] = optimizer.param_groups[1]["lr"]
+            log_wandb(run, metrics_log, step=it)
 
         pbar.set_postfix({"loss": f"{loss.item():.4f}", "lr": f"{lr:.6f}"})
         pbar.update(1)
