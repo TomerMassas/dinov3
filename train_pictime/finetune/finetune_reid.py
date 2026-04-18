@@ -59,9 +59,15 @@ def add_version_suffix(output_dir: str) -> str:
 def load_backbone(pretrain_cfg_path: str, ckpt_path: str, which: str = "teacher"):
     """Load a pretrained DINOv3 backbone from a DCP checkpoint.
 
-    Builds SSLMetaArch the same way the pretrain script does, loads the
-    checkpoint, then extracts the teacher/student backbone.
+    DCP requires the FSDP2-wrapped SSLMetaArch to load. We use that only to
+    read the weights, then copy the full (unsharded) state dict into a fresh,
+    *unwrapped* backbone with fp32 params. Finetune then runs with autocast(bf16)
+    for compute speed while params/grads/optimizer state stay fp32 (standard
+    mixed-precision recipe — avoids update swamping on small LR_backbone).
     """
+    from dinov3.models import build_model_from_cfg
+    from torch.distributed.checkpoint.state_dict import get_model_state_dict, StateDictOptions
+
     dummy_dir = "/tmp/finetune_dummy"
     Path(dummy_dir).mkdir(parents=True, exist_ok=True)
     setup_args = DinoV3SetupArgs(
@@ -71,7 +77,7 @@ def load_backbone(pretrain_cfg_path: str, ckpt_path: str, which: str = "teacher"
     )
     cfg = setup_config(setup_args, strict_cfg=False)
 
-    # Build model on meta device, then materialize on CUDA (same as pretrain script)
+    # Build FSDP2-wrapped model on meta → materialize on CUDA (same as pretrain script)
     with torch.device("meta"):
         model = SSLMetaArch(cfg)
     model.prepare_for_distributed_training()
@@ -85,22 +91,46 @@ def load_backbone(pretrain_cfg_path: str, ckpt_path: str, which: str = "teacher"
     )
     model.init_weights()
 
-    # Load DCP checkpoint
     load_checkpoint(ckpt_path, model=model)
     print(f"Loaded checkpoint from {ckpt_path}")
 
-    # Extract backbone
-    mdl = model.teacher if which == "teacher" else model.student
-    backbone = mdl["backbone"]
-    embed_dim = backbone.embed_dim
+    # Extract full (unsharded) state dict from the wrapped backbone
+    wrapped_backbone = (model.teacher if which == "teacher" else model.student)["backbone"]
+    full_sd = get_model_state_dict(
+        wrapped_backbone,
+        options=StateDictOptions(full_state_dict=True, cpu_offload=False),
+    )
 
-    # Cleanup
-    del model
+    # Defensive: strip wrapper prefixes that can leak through (AC / torch.compile)
+    prefix_strip = ["_orig_mod.", "_checkpoint_wrapped_module."]
+    cleaned_sd = {}
+    for k, v in full_sd.items():
+        new_k = k
+        for p in prefix_strip:
+            new_k = new_k.replace(p, "")
+        cleaned_sd[new_k] = v
+
+    # Free the FSDP2-wrapped model before building the fresh one
+    del model, wrapped_backbone, full_sd
     torch.cuda.empty_cache()
+
+    # Fresh, unwrapped backbone — no FSDP / no compile / no AC, fp32 params on CUDA
+    fresh_backbone, embed_dim = build_model_from_cfg(cfg, only_teacher=True)
+    fresh_backbone.to_empty(device="cuda")
+    fresh_backbone.load_state_dict(cleaned_sd, strict=True)  # shouts on any key mismatch
+
+    # Loud assertion: if for any reason params aren't fp32, stop now rather than
+    # silently finetune with the wrong dtype
+    param_dtypes = {p.dtype for p in fresh_backbone.parameters()}
+    if param_dtypes != {torch.float32}:
+        raise RuntimeError(
+            f"Expected all backbone params to be float32, got dtypes: {param_dtypes}"
+        )
+
     import shutil
     shutil.rmtree(dummy_dir, ignore_errors=True)
 
-    return backbone, embed_dim
+    return fresh_backbone, embed_dim
 
 
 def build_projection_head(embed_dim: int, hidden_dim: int, output_dim: int) -> nn.Sequential:
@@ -314,12 +344,14 @@ def main():
         images = images.cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
 
-        # Forward
-        with torch.no_grad() if cfg.freeze_backbone and (cfg.unfreeze_after <= 0 or it < cfg.unfreeze_after) else torch.enable_grad():
+        # Forward — autocast(bf16) for matmul speed; params + grads stay fp32
+        backbone_frozen = cfg.freeze_backbone and (cfg.unfreeze_after <= 0 or it < cfg.unfreeze_after)
+        grad_ctx = torch.no_grad() if backbone_frozen else torch.enable_grad()
+        with grad_ctx, torch.autocast(device_type="cuda", dtype=torch.bfloat16):
             embs = backbone(images)
             embs = embs["x_norm_clstoken"] if isinstance(embs, dict) else embs
 
-        proj = proj_head(embs.float())
+        proj = proj_head(embs.float())  # bf16 → fp32 before proj head
         proj = F.normalize(proj, dim=-1)
 
         loss = criterion(proj, labels)

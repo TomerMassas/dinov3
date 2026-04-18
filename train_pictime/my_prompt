@@ -1,1 +1,64 @@
-what do line 187-197 in reid_evaluator.py do?
+Finetuning:  11%|█▋              | 1996/18740 [18:52<2:50:20,  1.64iter/s, loss=2.2434, lr=0.000984]
+Finetuning:  11%|█▋              | 1997/18740 [18:52<2:50:19,  1.64iter/s, loss=2.4738, lr=0.000983]
+Finetuning:  11%|█▋              | 1998/18740 [18:53<2:50:19,  1.64iter/s, loss=1.9096, lr=0.000983]
+Finetuning:  11%|█▋              | 1999/18740 [18:54<2:50:18,  1.64iter/s, loss=2.2249, lr=0.000983][iter 2000] Unfreezing last 2 blocks + final norm
+
+Finetuning:  11%|█▋              | 2000/18740 [18:54<2:50:18,  1.64iter/s, loss=2.8730, lr=0.000983][Eval @ iter 2000] Rank-1=0.6184 Rank-5=0.7657 mAP=0.3419 Silhouette=-0.0578
+[Checkpoint] Saved ckpt_iter2000_sil-0.0578.pt (silhouette=-0.0578)
+Traceback (most recent call last):
+  File "/data/AI/Tomer/dinov3/train_pictime/finetune/finetune_reid.py", line 387, in <module>
+    main()
+  File "/data/AI/Tomer/dinov3/train_pictime/finetune/finetune_reid.py", line 329, in main
+    loss.backward()
+  File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/_tensor.py", line 630, in backward
+    torch.autograd.backward(
+  File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/autograd/__init__.py", line 364, in backward
+    _engine_run_backward(
+  File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/autograd/graph.py", line 865, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/autograd/function.py", line 317, in apply
+    return user_fn(self, *args)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/distributed/fsdp/_fully_shard/_fsdp_param_group.py", line 900, in backward
+    ctx.param_group.post_backward()
+  File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/distributed/fsdp/_fully_shard/_fsdp_param_group.py", line 566, in post_backward
+    ) = foreach_reduce(
+        ^^^^^^^^^^^^^^^
+  File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/distributed/fsdp/_fully_shard/_fsdp_collectives.py", line 642, in foreach_reduce
+    fsdp_param.sharded_param.grad = new_sharded_dtensor_grad
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: attempting to assign a gradient with dtype 'c10::BFloat16' to a tensor with grad_dtype 'Float'. The gradient must match the tensor's grad_dtype (defaults to the tensor's dtype). You can set the tensor's grad_dtype attribute with a specific dtype, or None to allow any dtype. Set grad_dtype with caution. Diverging the dtypes of a tensor and its gradient may break downstream systems that assume they match.
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/data/AI/Tomer/dinov3/train_pictime/finetune/finetune_reid.py", line 387, in <module>
+[rank0]:     main()
+[rank0]:   File "/data/AI/Tomer/dinov3/train_pictime/finetune/finetune_reid.py", line 329, in main
+[rank0]:     loss.backward()
+[rank0]:   File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/_tensor.py", line 630, in backward
+[rank0]:     torch.autograd.backward(
+[rank0]:   File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/autograd/__init__.py", line 364, in backward
+[rank0]:     _engine_run_backward(
+[rank0]:   File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/autograd/graph.py", line 865, in _engine_run_backward
+[rank0]:     return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/autograd/function.py", line 317, in apply
+[rank0]:     return user_fn(self, *args)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/distributed/fsdp/_fully_shard/_fsdp_param_group.py", line 900, in backward
+[rank0]:     ctx.param_group.post_backward()
+[rank0]:   File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/distributed/fsdp/_fully_shard/_fsdp_param_group.py", line 566, in post_backward
+[rank0]:     ) = foreach_reduce(
+[rank0]:         ^^^^^^^^^^^^^^^
+[rank0]:   File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+[rank0]:     return func(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/AI/Tomer/.virtualenvs/dinov3/lib/python3.12/site-packages/torch/distributed/fsdp/_fully_shard/_fsdp_collectives.py", line 642, in foreach_reduce
+[rank0]:     fsdp_param.sharded_param.grad = new_sharded_dtensor_grad
+[rank0]:     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]: RuntimeError: attempting to assign a gradient with dtype 'c10::BFloat16' to a tensor with grad_dtype 'Float'. The gradient must match the tensor's grad_dtype (defaults to the tensor's dtype). You can set the tensor's grad_dtype attribute with a specific dtype, or None to allow any dtype. Set grad_dtype with caution. Diverging the dtypes of a tensor and its gradient may break downstream systems that assume they match.
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33mfinetune_reid_vits16_bs64[0m at: [34mhttps://wandb.ai/tomer-massas/person-reid-finetune/runs/9r0x13kw[0m
+[1;34mwandb[0m: Find logs at: [1;35m../finetune_experiments/V2/wandb/run-20260418_103248-9r0x13kw/logs[0m
