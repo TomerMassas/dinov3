@@ -235,12 +235,14 @@ def main():
     arch_tag = arch_to_tag(pretrain_cfg.student.arch) + str(int(pretrain_cfg.student.patch_size))
     batch_size = cfg.P * cfg.K
     frozen_tag = "_frozen" if cfg.freeze_backbone and cfg.unfreeze_after <= 0 else ""
-    run_name = f"finetune_reid_{arch_tag}_bs{batch_size}{frozen_tag}"
+    tag_suffix = f"_{cfg.experiment_tag}" if cfg.get("experiment_tag") else ""
+    run_name = f"finetune_reid_{arch_tag}_bs{batch_size}{frozen_tag}{tag_suffix}"
     run = init_wandb(
                         cfg,
                         output_dir=output_dir,
                         run_name=run_name,
                         project=cfg.wandb_project,
+                        group=cfg.get("experiment_group"),
                     )
 
     # Model

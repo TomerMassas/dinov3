@@ -23,7 +23,7 @@ def find_wandb_run_id_by_name(run_name: str, project: Optional[str] = None, enti
     return None
 
 
-def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None, resume_id: Optional[str] = None, project: Optional[str] = None) -> Any:
+def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None, resume_id: Optional[str] = None, project: Optional[str] = None, group: Optional[str] = None) -> Any:
     if wandb is None:
         return None
 
@@ -40,6 +40,7 @@ def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None, resume_id: 
         project=project,
         entity=entity,
         name=run_name,
+        group=group,
         dir=output_dir,
         config=OmegaConf.to_container(cfg, resolve=True),
         **resume_kwargs,
