@@ -1,5 +1,6 @@
 ftfy
 omegaconf
+pytorch-metric-learning
 regex
 scikit-learn
 submitit

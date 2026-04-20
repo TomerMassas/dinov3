@@ -17,6 +17,7 @@ from dinov3.train.cosine_lr_scheduler import CosineScheduler
 
 from train_pictime.wandb_logger import init_wandb, log_wandb
 from train_pictime.finetune.supcon_loss import SupConLoss
+from pytorch_metric_learning.losses import ArcFaceLoss
 from train_pictime.finetune.reid_dataset import (
     load_index, build_global_identity_map, ReIDCropDataset,
     PKBatchSampler, train_val_split, get_train_transform,
@@ -151,7 +152,7 @@ def freeze_backbone(backbone: nn.Module):
     backbone.eval()
 
 
-def maybe_unfreeze(backbone, proj_head, optimizer, iteration, cfg):
+def maybe_unfreeze(backbone, proj_head, criterion, optimizer, iteration, cfg):
     """Unfreeze last N blocks at the configured iteration. Returns new optimizer or None."""
     if cfg.unfreeze_after <= 0 or iteration != cfg.unfreeze_after:
         return None
@@ -166,10 +167,11 @@ def maybe_unfreeze(backbone, proj_head, optimizer, iteration, cfg):
     if hasattr(backbone, "norm"):
         backbone.norm.requires_grad_(True)
 
-    # Rebuild optimizer with 2 param groups
+    # Rebuild optimizer with 2 param groups (criterion params stay with head)
     unfrozen_params = [p for p in backbone.parameters() if p.requires_grad]
+    head_and_criterion_params = list(proj_head.parameters()) + list(criterion.parameters())
     new_optimizer = torch.optim.AdamW([
-        {"params": proj_head.parameters(), "lr": cfg.lr},
+        {"params": head_and_criterion_params, "lr": cfg.lr},
         {"params": unfrozen_params, "lr": cfg.lr_backbone, "lr_multiplier": cfg.lr_backbone / cfg.lr},
     ], weight_decay=cfg.weight_decay)
 
@@ -189,7 +191,7 @@ class BestCheckpointTracker:
         self.entries: list[tuple[float, Path]] = []  # (metric_value, path)
         self.ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-    def maybe_save(self, metric_value: float, iteration: int, backbone, proj_head, optimizer):
+    def maybe_save(self, metric_value: float, iteration: int, backbone, proj_head, criterion, optimizer):
         """Save if metric is better than worst kept checkpoint."""
         if len(self.entries) >= self.max_keep:
             worst_val, worst_path = min(self.entries, key=lambda x: x[0])
@@ -206,6 +208,7 @@ class BestCheckpointTracker:
             "silhouette": metric_value,
             "backbone_state_dict": backbone.state_dict(),
             "proj_head_state_dict": proj_head.state_dict(),
+            "criterion_state_dict": criterion.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
         }, path)
         self.entries.append((metric_value, path))
@@ -275,6 +278,8 @@ def main():
 
     # Train dataset
     train_labels = build_global_identity_map(project_ids[train_mask], cluster_ids[train_mask])
+    num_classes = int(train_labels.max()) + 1  # labels are contiguous 0..N-1 by construction
+    print(f"Num classes: {num_classes}")
     train_dataset = ReIDCropDataset(
                                     image_paths[train_mask], bboxes[train_mask], project_ids[train_mask],
                                     train_labels, transform=get_train_transform(), min_k=cfg.K,
@@ -308,8 +313,25 @@ def main():
         silhouette_max_samples=cfg.silhouette_max_samples,
     )
 
-    # Optimizer + scheduler
-    optimizer = torch.optim.AdamW(proj_head.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    # Loss
+    if cfg.get("loss", "supcon") == "arcface":
+        criterion = ArcFaceLoss(
+            num_classes=num_classes,
+            embedding_size=cfg.proj_output_dim,
+            margin=cfg.arcface_m_deg,
+            scale=cfg.arcface_s,
+        ).cuda()
+        print(f"Loss: ArcFace (s={cfg.arcface_s}, m={cfg.arcface_m_deg}°)")
+    else:
+        criterion = SupConLoss(temperature=cfg.temperature)
+        print(f"Loss: SupCon (tau={cfg.temperature})")
+
+    # Optimizer + scheduler (criterion.parameters() is empty for SupCon, non-empty for ArcFace)
+    optimizer = torch.optim.AdamW(
+        list(proj_head.parameters()) + list(criterion.parameters()),
+        lr=cfg.lr,
+        weight_decay=cfg.weight_decay,
+    )
 
     lr_schedule = CosineScheduler(
         base_value=cfg.lr,
@@ -318,9 +340,6 @@ def main():
         warmup_iters=cfg.warmup_iters,
         start_warmup_value=0,
     )
-
-    # Loss
-    criterion = SupConLoss(temperature=cfg.temperature)
 
     # Checkpointing
     ckpt_tracker = BestCheckpointTracker(Path(output_dir) / "ckpt", max_keep=cfg.ckpt_max_keep)
@@ -362,8 +381,17 @@ def main():
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
 
+        head_grad_norm = None
+        bb_grad_norm = None
+        classifier_grad_norm = None
         if cfg.clip_grad > 0:
-            torch.nn.utils.clip_grad_norm_(proj_head.parameters(), max_norm=cfg.clip_grad)
+            head_grad_norm = torch.nn.utils.clip_grad_norm_(list(proj_head.parameters()), max_norm=cfg.clip_grad)
+            backbone_trainable = [p for p in backbone.parameters() if p.requires_grad]
+            if backbone_trainable:
+                bb_grad_norm = torch.nn.utils.clip_grad_norm_(backbone_trainable, max_norm=cfg.clip_grad)
+            classifier_params = [p for p in criterion.parameters() if p.requires_grad]
+            if classifier_params:
+                classifier_grad_norm = torch.nn.utils.clip_grad_norm_(classifier_params, max_norm=cfg.clip_grad)
 
         if not math.isfinite(loss.item()):
             print(f"[WARN] NaN/Inf loss at iter {it}, skipping update")
@@ -373,18 +401,10 @@ def main():
 
         optimizer.step()
 
-        # Maybe unfreeze
-        new_opt = maybe_unfreeze(backbone, proj_head, optimizer, it, cfg)
+        # Maybe unfreeze (scheduler is shared base curve; no rebuild needed)
+        new_opt = maybe_unfreeze(backbone, proj_head, criterion, optimizer, it, cfg)
         if new_opt is not None:
             optimizer = new_opt
-            # Rebuild LR schedule for remaining iters
-            lr_schedule = CosineScheduler(
-                base_value=cfg.lr,
-                final_value=cfg.min_lr,
-                total_iters=total_iters - it,
-                warmup_iters=0,
-                start_warmup_value=cfg.lr,
-            )
 
         # Log
         if it % 10 == 0:
@@ -395,6 +415,12 @@ def main():
             }
             if len(optimizer.param_groups) > 1:
                 metrics_log["train/lr_backbone"] = optimizer.param_groups[1]["lr"]
+            if head_grad_norm is not None:
+                metrics_log["train/grad_norm_head"] = float(head_grad_norm)
+            if bb_grad_norm is not None:
+                metrics_log["train/grad_norm_backbone"] = float(bb_grad_norm)
+            if classifier_grad_norm is not None:
+                metrics_log["train/grad_norm_classifier"] = float(classifier_grad_norm)
             log_wandb(run, metrics_log, step=it)
 
         pbar.set_postfix({"loss": f"{loss.item():.4f}", "lr": f"{lr:.6f}"})
@@ -404,14 +430,14 @@ def main():
         if cfg.ckpt_every > 0 and it > 0 and it % cfg.ckpt_every == 0:
             metrics = evaluator.maybe_eval(backbone, proj_head, it, run)
             if metrics is not None and "silhouette" in metrics:
-                ckpt_tracker.maybe_save(metrics["silhouette"], it, backbone, proj_head, optimizer)
+                ckpt_tracker.maybe_save(metrics["silhouette"], it, backbone, proj_head, criterion, optimizer)
 
     pbar.close()
 
     # Final eval
     metrics = evaluator.maybe_eval(backbone, proj_head, total_iters, run)
     if metrics is not None and "silhouette" in metrics:
-        ckpt_tracker.maybe_save(metrics["silhouette"], total_iters, backbone, proj_head, optimizer)
+        ckpt_tracker.maybe_save(metrics["silhouette"], total_iters, backbone, proj_head, criterion, optimizer)
 
     if run is not None:
         run.finish()

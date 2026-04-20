@@ -1,7 +1,7 @@
 # --- W&B ---
 wandb_project: "person-reid-finetune"
-experiment_tag: "tau0.1"          # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
-experiment_group: "trial_temperature"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
+experiment_tag: "arcface_m28deg_frozen"          # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
+experiment_group: "trial5_arcface"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
 
 # --- Paths ---
 data_base_path: "/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]"
@@ -21,8 +21,8 @@ proj_output_dim: 128
 #   Head trains first. At iteration N, the last unfreeze_n_blocks transformer
 #   blocks + final layer norm are unfrozen with a lower lr (lr_backbone).
 freeze_backbone: true
-unfreeze_after: 0         # iteration to unfreeze (0 = never)
-unfreeze_n_blocks: 2         # last N transformer blocks to unfreeze
+unfreeze_after: 0            # iteration to unfreeze (0 = never). Trial 5: mode A, no unfreeze
+unfreeze_n_blocks: 0         # last N transformer blocks to unfreeze
 
 # --- Training ---
 num_epochs: 10
@@ -30,12 +30,17 @@ P: 16                        # projects per batch (1 identity each)
 K: 4                         # crops per identity -> batch_size = P*K = 64
 num_workers: 4
 lr: 1.0e-3                   # projection head LR
-lr_backbone: 1.0e-5          # unfrozen backbone LR (only used in mode C)
+lr_backbone: 1.0e-4          # unfrozen backbone LR (only used in mode C)
 min_lr: 1.0e-6               # final LR after cosine decay
 weight_decay: 1.0e-4
 warmup_iters: 500            # gradual LR ramp-up to avoid unstable early gradientsi
-temperature: 0.1            # SupCon temperature
-clip_grad: 1.0
+temperature: 0.07            # SupCon temperature (unused when loss=arcface)
+clip_grad: 5.0
+
+# --- Loss ---
+loss: "arcface"              # "supcon" (default) | "arcface"
+arcface_s: 30                # softmax scale (used when loss=arcface)
+arcface_m_deg: 28.6          # angular margin in DEGREES (pytorch-metric-learning convention); 28.6° ≈ 0.5 rad
 seed: 42
 
 # --- Eval ---
