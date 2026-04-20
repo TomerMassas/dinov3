@@ -6,12 +6,16 @@ Person ReID finetuning of DINOv3 ViT-S/16 (pretrained on 6.5M Pictime images) wi
 
 ## Runs so far
 
-| Run | Backbone ckpt | Mode | Unfreeze | Iters | mAP | Rank-1 | Rank-5 | Rank-10 | Silhouette |
-|-----|---------------|------|----------|-------|-----|--------|--------|---------|------------|
-| `finetune_reid_vits16_bs64_frozen` (green) | V9/ckpt/15000 | A — frozen backbone | — | ~9.4k | 0.370 | 0.637 | 0.762 | 0.815 | -0.014 |
-| `finetune_reid_vits16_bs64` (pink) | V9/ckpt/15000 | C — progressive unfreeze | 2 blocks @ iter 2000 | ~18k | 0.390 | 0.650 | 0.782 | 0.822 | -0.005 |
+| Run | Backbone ckpt | Mode / Loss | Unfreeze | Iters | mAP | Rank-1 | Rank-5 | Rank-10 | Silhouette |
+|-----|---------------|-------------|----------|-------|-----|--------|--------|---------|------------|
+| `finetune_reid_vits16_bs64_frozen` (green) | V9/ckpt/15000 | A (SupCon, τ=0.07, frozen) | — | ~9.4k | 0.370 | 0.637 | 0.762 | 0.815 | -0.014 |
+| `finetune_reid_vits16_bs64` (pink) | V9/ckpt/15000 | C (SupCon, τ=0.07) | 2 blocks @ iter 2000 | ~18k | 0.390 | 0.650 | 0.782 | 0.822 | -0.005 |
+| `finetune_reid_vits16_bs64_unfreeze4_lr1e-4` (blue) | V9/ckpt/15000 | C (SupCon, τ=0.07) | 4 blocks @ iter 2000, lr_backbone=1e-4 | ~9k | **0.415** | **0.680** | **0.805** | **0.845** | **+0.015** |
+| `finetune_reid_vits16_bs64_frozen_arcface_m28deg_frozen` (orange) | V9/ckpt/15000 | A (ArcFace, s=30, m=28.6°, frozen) | — | ~4k (stopped) | 0.250 | 0.520 | 0.680 | 0.720 | -0.105 |
 
-Delta (C − A): +0.020 mAP, +0.013 Rank-1, +0.020 Rank-5, +0.007 Rank-10, +0.009 silhouette.
+Delta of blue vs green (Trial 2 stronger Mode C vs Mode A baseline): +0.045 mAP, +0.043 Rank-1, +0.043 Rank-5, +0.030 Rank-10, +0.029 silhouette. Trial 2 is the **current leader**.
+
+Orange (ArcFace) **diverged**: train/loss dropped 28→22 (classifier learning) while eval metrics decayed over iters. Classic "head distorting to satisfy rigid angular margin" failure — the head was pulled into a configuration that serves the classifier loss but destroys retrieval quality.
 
 ---
 
@@ -33,6 +37,7 @@ Delta (C − A): +0.020 mAP, +0.013 Rank-1, +0.020 Rank-5, +0.007 Rank-10, +0.00
 - **H4. PK batch too small.** P=16, K=4 → 64 samples per batch, only 16 negative classes. Noisy SupCon estimate, high variance per step.
 - **H5. Label noise.** Negative silhouette suggests many "same-person" pairs in the index actually look very different (occlusion, scale, pose, wardrobe changes within a session) or clusters include wrong-person crops. If labels are noisy, every tuning knob is fighting noise.
 - **H6. SupCon may be the wrong loss for this data.** SupCon is pair-based: every positive directly pulls the anchor, so a single noisy "same-class" crop in a PK batch can dominate the gradient. Classification-based angular-margin losses (ArcFace family) represent each class by a learned prototype (the classifier weight vector), which averages out intra-class outliers and enforces inter-class separation via an additive angular margin. Likely better-behaved under label noise and more suitable for an open-set-at-eval retrieval task with many classes.
+- **H7. ArcFace margin engages too aggressively on a frozen backbone.** Trial 5 confirmed ArcFace *can* learn (train loss went down) but the head got pulled off the retrieval manifold. With a frozen backbone, only the small MLP head can absorb the margin pressure, and at m=28.6° from step 0 it distorts. Two fixes: (a) a smaller target margin, (b) margin warmup so the head finds a stable embedding geometry before the margin turns on. The classifier also shouldn't race ahead of the head — weight_decay on cosine-normalized prototypes is noise, and keeping classifier LR ≤ head LR prevents overshoot.
 
 ---
 
@@ -71,7 +76,18 @@ Delta (C − A): +0.020 mAP, +0.013 Rank-1, +0.020 Rank-5, +0.007 Rank-10, +0.00
   - **CosFace** — additive cosine margin instead of angular. Simpler, often similar performance.
 - **Budget:** 6k–9k iters on frozen backbone.
 - **Success criterion:** beats mode A SupCon baseline on mAP (>0.37) *and* pushes silhouette closer to zero or positive. If silhouette turns positive while SupCon never did, that's strong evidence loss choice is the bottleneck.
-- **Risk / cost:** classifier weight matrix is `num_classes × D` — with 50K classes × 128d = 6.4M extra params, trivially affordable. Softmax over 50K classes per step is the main speed cost but still cheap on a single GPU.
+- **Risk / cost:** classifier weight matrix is `num_classes × D` — with ~21K classes (current subset) × 128d ≈ 2.7M extra params, trivially affordable. Softmax over 21K classes per step is cheap on a single GPU.
+
+### Trial 6 — ArcFace refinement (H7)
+Follow-up to the failed Trial 5 — same loss family, three targeted changes to address the head-distortion failure:
+- **Lower margin**: `m=17.2°` (≈0.3 rad), down from 28.6°. Less angular pressure on a frozen-backbone head.
+- **Margin warmup**: ramp margin 0 → target over the first 1000 iters. Let the head find a good embedding geometry before the margin engages.
+- **Separate classifier optimizer group**: classifier gets its own param group with `weight_decay=0` (WD on cosine-normalized prototypes is noise). LR plumbed as `arcface_classifier_lr` (default = head LR). Plumbing lets us tune classifier LR in follow-up trials without code edits.
+- Sampling stays PK for variable isolation — random sampling deferred to a separate trial.
+- **Tag:** `arcface_m17deg_warmup1k_sep`.
+- **Success criterion (stage 1):** eval curves stabilize/rise instead of decaying. Match or beat the green SupCon baseline (mAP 0.37, sil -0.015).
+- **If success:** next up is Mode-C ArcFace (unfreeze 4 blocks @ iter 2000, lr_backbone 1e-4 — same recipe that made blue the current leader). If that run competes with blue, loss choice is the decisive lever.
+- **If failure (eval still decays):** likely remaining suspect is classifier LR — reduce to `0.5 × head_lr` in a follow-up. After that, consider SubCenter-ArcFace for explicit intra-class noise handling.
 
 ---
 

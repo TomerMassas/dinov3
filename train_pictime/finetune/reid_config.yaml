@@ -1,6 +1,6 @@
 # --- W&B ---
 wandb_project: "person-reid-finetune"
-experiment_tag: "arcface_m28deg_frozen"          # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
+experiment_tag: "arcface_m17deg_warmup1k_sep"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
 experiment_group: "trial5_arcface"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
 
 # --- Paths ---
@@ -40,7 +40,10 @@ clip_grad: 5.0
 # --- Loss ---
 loss: "arcface"              # "supcon" (default) | "arcface"
 arcface_s: 30                # softmax scale (used when loss=arcface)
-arcface_m_deg: 28.6          # angular margin in DEGREES (pytorch-metric-learning convention); 28.6° ≈ 0.5 rad
+arcface_m_deg: 17.2          # angular margin in DEGREES; 17.2° ≈ 0.3 rad (reduced from 28.6° after head-distortion failure)
+arcface_margin_warmup_iters: 1000  # ramp margin from 0° to target over first N iters (0 = no warmup)
+arcface_classifier_lr: 1.0e-3      # LR for ArcFace classifier param group (defaults to head lr)
+arcface_classifier_wd: 0.0         # weight decay on classifier (0 = no WD; cosine-normalized prototypes don't need WD)
 seed: 42
 
 # --- Eval ---

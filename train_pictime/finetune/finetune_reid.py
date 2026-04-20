@@ -167,13 +167,28 @@ def maybe_unfreeze(backbone, proj_head, criterion, optimizer, iteration, cfg):
     if hasattr(backbone, "norm"):
         backbone.norm.requires_grad_(True)
 
-    # Rebuild optimizer with 2 param groups (criterion params stay with head)
+    # Rebuild optimizer. For ArcFace: 3 groups (head / classifier / backbone).
+    # For SupCon: 2 groups (head+criterion / backbone) — criterion has no params.
     unfrozen_params = [p for p in backbone.parameters() if p.requires_grad]
-    head_and_criterion_params = list(proj_head.parameters()) + list(criterion.parameters())
-    new_optimizer = torch.optim.AdamW([
-        {"params": head_and_criterion_params, "lr": cfg.lr},
-        {"params": unfrozen_params, "lr": cfg.lr_backbone, "lr_multiplier": cfg.lr_backbone / cfg.lr},
-    ], weight_decay=cfg.weight_decay)
+    if cfg.get("loss", "supcon") == "arcface" and list(criterion.parameters()):
+        head_params = list(proj_head.parameters())
+        classifier_params = list(criterion.parameters())
+        classifier_lr = float(cfg.get("arcface_classifier_lr", cfg.lr))
+        classifier_wd = float(cfg.get("arcface_classifier_wd", cfg.weight_decay))
+        new_optimizer = torch.optim.AdamW([
+            {"params": head_params, "lr": cfg.lr,
+             "weight_decay": cfg.weight_decay, "lr_multiplier": 1.0},
+            {"params": classifier_params, "lr": classifier_lr,
+             "weight_decay": classifier_wd, "lr_multiplier": classifier_lr / cfg.lr},
+            {"params": unfrozen_params, "lr": cfg.lr_backbone,
+             "weight_decay": cfg.weight_decay, "lr_multiplier": cfg.lr_backbone / cfg.lr},
+        ])
+    else:
+        head_and_criterion_params = list(proj_head.parameters()) + list(criterion.parameters())
+        new_optimizer = torch.optim.AdamW([
+            {"params": head_and_criterion_params, "lr": cfg.lr},
+            {"params": unfrozen_params, "lr": cfg.lr_backbone, "lr_multiplier": cfg.lr_backbone / cfg.lr},
+        ], weight_decay=cfg.weight_decay)
 
     return new_optimizer
 
@@ -326,12 +341,35 @@ def main():
         criterion = SupConLoss(temperature=cfg.temperature)
         print(f"Loss: SupCon (tau={cfg.temperature})")
 
-    # Optimizer + scheduler (criterion.parameters() is empty for SupCon, non-empty for ArcFace)
-    optimizer = torch.optim.AdamW(
-        list(proj_head.parameters()) + list(criterion.parameters()),
-        lr=cfg.lr,
-        weight_decay=cfg.weight_decay,
-    )
+    # ArcFace margin warmup: pytorch-metric-learning converts margin to radians in init_margin()
+    # and uses self.margin directly each forward — no precomputation, so runtime mutation works.
+    arcface_target_margin_rad = None
+    if cfg.get("loss", "supcon") == "arcface":
+        arcface_target_margin_rad = float(criterion.margin)  # already radians after init
+        if cfg.get("arcface_margin_warmup_iters", 0) > 0:
+            criterion.margin = 0.0
+
+    # Optimizer + scheduler. For ArcFace we split classifier into its own param group
+    # (separate LR and weight_decay from head). criterion.parameters() is empty for SupCon.
+    if cfg.get("loss", "supcon") == "arcface" and list(criterion.parameters()):
+        head_params = list(proj_head.parameters())
+        classifier_params = list(criterion.parameters())
+        classifier_lr = float(cfg.get("arcface_classifier_lr", cfg.lr))
+        classifier_wd = float(cfg.get("arcface_classifier_wd", cfg.weight_decay))
+        optimizer = torch.optim.AdamW([
+            {"params": head_params, "lr": cfg.lr,
+             "weight_decay": cfg.weight_decay, "lr_multiplier": 1.0},
+            {"params": classifier_params, "lr": classifier_lr,
+             "weight_decay": classifier_wd, "lr_multiplier": classifier_lr / cfg.lr},
+        ])
+        print(f"Optimizer: head lr={cfg.lr} wd={cfg.weight_decay} | "
+              f"classifier lr={classifier_lr} wd={classifier_wd}")
+    else:
+        optimizer = torch.optim.AdamW(
+            list(proj_head.parameters()) + list(criterion.parameters()),
+            lr=cfg.lr,
+            weight_decay=cfg.weight_decay,
+        )
 
     lr_schedule = CosineScheduler(
         base_value=cfg.lr,
@@ -375,6 +413,14 @@ def main():
         proj = proj_head(embs.float())  # bf16 → fp32 before proj head
         proj = F.normalize(proj, dim=-1)
 
+        # ArcFace margin warmup — ramp from 0 to target over arcface_margin_warmup_iters
+        if arcface_target_margin_rad is not None:
+            warmup_iters = cfg.get("arcface_margin_warmup_iters", 0)
+            if warmup_iters > 0 and it < warmup_iters:
+                criterion.margin = (it / warmup_iters) * arcface_target_margin_rad
+            else:
+                criterion.margin = arcface_target_margin_rad
+
         loss = criterion(proj, labels)
 
         # Backward
@@ -413,7 +459,12 @@ def main():
                 "train/loss": loss.item(),
                 "train/lr": lr,
             }
-            if len(optimizer.param_groups) > 1:
+            if arcface_target_margin_rad is not None:
+                metrics_log["train/arcface_margin_deg"] = float(np.degrees(criterion.margin))
+                # With ArcFace, param_groups[1] is the classifier (frozen path);
+                # in Mode-C ArcFace it will be param_groups[2] — revisit then.
+                metrics_log["train/lr_classifier"] = optimizer.param_groups[1]["lr"]
+            elif len(optimizer.param_groups) > 1:
                 metrics_log["train/lr_backbone"] = optimizer.param_groups[1]["lr"]
             if head_grad_norm is not None:
                 metrics_log["train/grad_norm_head"] = float(head_grad_norm)
