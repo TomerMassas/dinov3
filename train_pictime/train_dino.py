@@ -26,6 +26,7 @@ from train_pictime.run_name import make_run_name
 from train_pictime.pictime_dataset import PicTimeImageDataset
 from train_pictime.wandb_logger import init_wandb, log_wandb
 from train_pictime.eval.evaluator import Evaluator, load_eval_config
+from train_pictime.foundation_loader import load_foundation_into_backbone
 
 REPO_ROOT = Path(__file__).resolve().parents[1]  # .../dinov3 (repo root)
 
@@ -252,6 +253,8 @@ def main():
 
     model = build_model(cfg)
     model.init_weights()
+    if args.pretrained:
+        load_foundation_into_backbone(model, args.pretrained)
     model.train()
 
     # Data
