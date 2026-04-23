@@ -54,6 +54,8 @@ def log_wandb(run: Any, metrics: Dict[str, float], step: int) -> None:
     if run is None:
         return
     metrics["train/iter"] = step
+    if step % 100 == 0:   # TEMP diagnostic for missing train-loss charts — remove after verification
+        print(f"[W&B LOG @ iter {step}] keys={sorted(metrics.keys())}")
     run.log(metrics)
 
 

@@ -5,8 +5,6 @@ import torch.compiler
 
 torch.compiler.set_stance("force_eager")
 from functools import partial
-import argparse
-import os
 import sys
 from types import SimpleNamespace
 from pathlib import Path
@@ -26,37 +24,6 @@ from train_pictime.eval.evaluator import Evaluator, load_eval_config
 from train_pictime.foundation_loader import load_foundation_into_backbone
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-
-
-def make_setup_args(args) -> DinoV3SetupArgs:
-    return DinoV3SetupArgs(
-        config_file=args.config_file,
-        output_dir=args.output_dir,
-        opts=[],
-    )
-
-
-def parse_args(resume: bool = False):
-    debug_defaults = dict(
-        config_file=str(REPO_ROOT / "train_pictime/pictime_vitl_im1k_lin834.yaml"),
-        output_dir="/data/AI/Tomer/dinov3/train_pictime/experiments",
-        train_list="/data/AI/Tomer/dinov3/train_pictime/train_paths.txt",
-        pretrained="/data/AI/Tomer/dinov3/dinov3/weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
-    )
-    use_debug = (os.environ.get("DEBUG_PICTIME", "0") == "1") or (len(sys.argv) == 1)
-    print(f"Using debug args: {use_debug}")
-    p = argparse.ArgumentParser("PicTime DINOv3 wrapper")
-    p.add_argument("--config-file", required=not use_debug)
-    p.add_argument("--output-dir", required=not use_debug)
-    p.add_argument("--train-list", required=not use_debug)
-    p.add_argument("--pretrained", required=not use_debug)
-
-    if use_debug:
-        args = SimpleNamespace(**debug_defaults)
-    else:
-        args = p.parse_args()
-    args.resume = resume
-    return args
 
 
 def _find_version_dirs(base_dir: Path):
@@ -236,9 +203,14 @@ def _load_wandb_run_id(output_dir: str) -> str | None:
 
 
 def main():
-    resume_training = False
-    args = parse_args(resume=resume_training)
-    if resume_training:
+    args = SimpleNamespace(
+        config_file=str(REPO_ROOT / "train_pictime/pictime_vitl_im1k_lin834.yaml"),
+        output_dir="/data/AI/Tomer/dinov3/train_pictime/experiments",
+        train_list="/data/AI/Tomer/dinov3/train_pictime/train_paths.txt",
+        pretrained="/data/AI/Tomer/dinov3/dinov3/weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
+        resume=False,  # flip to True to resume from latest V-dir
+    )
+    if args.resume:
         args = use_latest_version_dir(args)
     else:
         args = add_version_suffix(args)

@@ -4,8 +4,6 @@ import torch.distributed as dist
 import torch.compiler
 torch.compiler.set_stance("force_eager")
 from functools import partial
-import argparse
-import os
 import sys
 from types import SimpleNamespace
 from pathlib import Path
@@ -33,45 +31,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]  # .../dinov3 (repo root)
 
 
 
-
-def make_setup_args(args) -> DinoV3SetupArgs:
-    return DinoV3SetupArgs(
-        config_file=args.config_file,
-        output_dir=args.output_dir,
-        opts=[],  # you said you don’t want CLI overrides
-        # pretrained_weights: leave None here; we set cfg.student.pretrained_weights later
-    )
-
-def parse_args():
-    """
-    CLI parser with a debug fallback.
-    Debug mode activates if:
-      - DEBUG_PICTIME=1, OR
-      - no CLI args were provided (len(sys.argv)==1)
-    """
-    debug_defaults = dict(
-                        config_file=str(REPO_ROOT / "train_pictime/pictime_vitl_im1k_lin834.yaml"),
-                        output_dir="/data/AI/Tomer/dinov3/train_pictime/experiments",
-                        train_list="/data/AI/Tomer/dinov3/train_pictime/train_paths.txt",
-                        pretrained="/data/AI/Tomer/dinov3/dinov3/weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
-                    )
-
-    use_debug = (os.environ.get("DEBUG_PICTIME", "0") == "1") or (len(sys.argv) == 1)
-
-    p = argparse.ArgumentParser("PicTime DINOv3 wrapper")
-    p.add_argument("--config-file", required=not use_debug)
-    p.add_argument("--output-dir", required=not use_debug)
-    p.add_argument("--train-list", required=not use_debug)
-    p.add_argument("--pretrained", required=not use_debug)
-
-    if use_debug:
-        args = SimpleNamespace(**debug_defaults)
-    else:
-        args = p.parse_args()
-
-    # Optional: log what happened
-    print(f"[parse_args] use_debug={use_debug} argv={sys.argv}")
-    return args
 
 def add_version_suffix(args):
     """
@@ -227,7 +186,12 @@ def safety_check_eval(cfg, evaluator:Evaluator):
 
 
 def main():
-    args = parse_args()
+    args = SimpleNamespace(
+        config_file=str(REPO_ROOT / "train_pictime/pictime_vitl_im1k_lin834.yaml"),
+        output_dir="/data/AI/Tomer/dinov3/train_pictime/experiments",
+        train_list="/data/AI/Tomer/dinov3/train_pictime/train_paths.txt",
+        pretrained="/data/AI/Tomer/dinov3/dinov3/weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
+    )
     args = add_version_suffix(args)
 
     # sets up distributed (even for world_size=1) + logging dirs + seed
