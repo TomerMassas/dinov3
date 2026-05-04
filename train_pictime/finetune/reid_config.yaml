@@ -1,12 +1,12 @@
 # --- W&B ---
 wandb_project: "person-reid-finetune"
-experiment_tag: "arcface_m17deg_warmup1k_sep"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
-experiment_group: "trial5_arcface"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
+experiment_tag: "unfreeze4_lr1e-4_v11ckpt13k"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
+experiment_group: "trial_unfreeze_size_and_lr_bb"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
 
 # --- Paths ---
 data_base_path: "/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]"
 pretrain_config: "train_pictime/pictime_vitl_im1k_lin834.yaml"
-pretrained_weights: "/data/AI/Tomer/dinov3/train_pictime/experiments/V9/ckpt/15000"
+pretrained_weights: "/data/AI/Tomer/dinov3/train_pictime/experiments/V11/ckpt/13000"
 output_dir: "/data/AI/Tomer/dinov3/train_pictime/finetune_experiments"
 
 # --- Model ---
@@ -21,8 +21,8 @@ proj_output_dim: 128
 #   Head trains first. At iteration N, the last unfreeze_n_blocks transformer
 #   blocks + final layer norm are unfrozen with a lower lr (lr_backbone).
 freeze_backbone: true
-unfreeze_after: 0            # iteration to unfreeze (0 = never). Trial 5: mode A, no unfreeze
-unfreeze_n_blocks: 0         # last N transformer blocks to unfreeze
+unfreeze_after: 2000         # iteration to unfreeze (0 = never)
+unfreeze_n_blocks: 4         # last N transformer blocks to unfreeze
 
 # --- Training ---
 num_epochs: 10
@@ -38,7 +38,7 @@ temperature: 0.07            # SupCon temperature (unused when loss=arcface)
 clip_grad: 5.0
 
 # --- Loss ---
-loss: "arcface"              # "supcon" (default) | "arcface"
+loss: "supcon"               # "supcon" (default) | "arcface"
 arcface_s: 30                # softmax scale (used when loss=arcface)
 arcface_m_deg: 17.2          # angular margin in DEGREES; 17.2° ≈ 0.3 rad (reduced from 28.6° after head-distortion failure)
 arcface_margin_warmup_iters: 1000  # ramp margin from 0° to target over first N iters (0 = no warmup)

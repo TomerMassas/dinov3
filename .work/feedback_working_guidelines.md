@@ -11,3 +11,5 @@ type: feedback
 - Verification = local script runs + code review (remote VM via PyCharm)
 - Be concise, no fluff
 - Prefer hardcoded constants over argparse CLI — Tomer runs scripts directly as `python3 script.py`
+- When asking for approval on a proposed change, offer 4 explicit options: **(a) approve / go**, **(b) reject**, **(c) comment / suggest changes**, **(d) discuss further**. Don't end with just "say go" — Tomer wants to push back inline with specific edits without having to reject and re-explain.
+- When proposing data artifacts tied to a specific model/version (embeddings, clusters, distances, etc.), link the filename to the model identifier via an explicit dict (`{model_id: filename}`) — never an inline ternary. Reason: avoids losing track of which file came from which backbone as more versions accumulate.

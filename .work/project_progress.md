@@ -203,3 +203,36 @@ Launch V10 fresh (no `--resume`). Expected log lines:
 - Ranked hypotheses: (A) `define_metric("*", step_metric="train/iter")` wildcard fails to match slashed keys in the installed wandb SDK version; (B) W&B workspace layout / chart-panel collapse (not a code bug); (C) silent exception in accumulation that zeroes the three keys.
 - **Step 1 applied**: added a throttled diagnostic print in `log_wandb` (`wandb_logger.py:56-57`) — prints `[W&B LOG @ iter N] keys=[…]` every 100 iters. Committed alongside the foundation-loader work.
 - Tomer is running with the diagnostic now; will report which of the three cases fires once he's past ~200 iters. Next step is case-specific fix (explicit per-key `define_metric` for Case A; tracedown for Case B; UI-layout reset for Case C). Diagnostic print gets removed once the fix lands.
+
+## 2026-05-04 — V11 finetune trial 1 win, curriculum sampler design, .work/ migration
+
+### V11 trial 1 — decisive win on the continued-pretrain backbone
+- Trial: SupCon Mode-C `unfreeze4_lr1e-4` on V11/ckpt/13000. exp_tag `unfreeze4_lr1e-4_v11ckpt13k`, exp_group `trial_unfreeze_size_and_lr_bb`
+- vs V9 "blue" baseline: **mAP 0.42 → 0.62 (+0.20)**, Rank-1 0.68 → 0.83, **Silhouette +0.015 → +0.18** (first decisively positive — embedding space finally healthy)
+- Confirms 2026-04-23 foundation-loader fix paid off. V1–V9 random-init was the bottleneck, not loss/recipe.
+- Curve pattern: mAP/Rank-1 plateau ~5–6k iters; Rank-5/10 + silhouette still climbing at 9k → 15–20 epochs may extract more.
+- V11 = first proper continued-pretrain (V10 was a smoke run). ~10 days train. ckpt/13000 is the new finetune source.
+
+### Curriculum sampler — design locked, not yet coded
+- Concept: per-identity centroid-based curriculum. Stage 1 = top-fraction `p` of crops closest to centroid; ramp `p(t): 0.5 → 1.0` over first 30% iters.
+- Critical control: include `p=0.5 fixed` ablation. Without it can't separate curriculum-learning from data-cleaning.
+- Centroid embeddings: **V11 pretrain (NOT finetune backbone)** — finetune was told "all crops in project = one identity" via SupCon, would mis-merge multi-person un-fixed projects on re-clustering.
+- Per-cluster L2-normed mean; cosine distance.
+
+### v2 data-prep pipeline status
+Modify-in-place pattern, `MODEL_SOURCE → filename` dict mapping in each script. v1 artifacts untouched.
+- ✅ `extract_embeddings.py` — V11 via `load_backbone` from `finetune_reid.py` (cross-script import). Out: `embeddings_v2.npz`. **Running on VM.**
+- ✅ `cluster_embeddings.py` — same HDBSCAN params; skips projects with `clusters_fixed.json` (reviewer truth wins). Out: `clusters_v2.json`. **About to run.**
+- ✅ `find_single_cluster_projects.py` — resolver hierarchy (fixed > v2 > skip). Reviewer-fixed accepted unconditionally; HDBSCAN-derived keep `len(non-noise)==2`. Out: `single_cluster_projects_v2.json`. **Code ready.**
+- ⏳ `build_centroids.py` (new) — planned. Per-project `crop_distances_v2.json` keyed by cluster_id with sorted (filename, bbox_index, distance).
+- ⏳ Sampler integration in `reid_dataset.py` + new config fields — planned.
+
+### Memory infrastructure — `.work/` migration
+- Auto-memory moved from `~/.claude-work/projects/.../memory/` into `<repo>/.work/` (git-tracked). Auto-memory now a pointer stub.
+- Renames: `progress.md` → `project_progress.md`, `roadmap.md` → `project_roadmap.md`.
+- New slash commands at `~/.claude-work/commands/` (global): `/session-start`, `/session-end`, `/handoff`, `/park`, `/pushback`, `/migrate-to-work-dir`. The last automates this migration in other work repos.
+- Working-guidelines memory updated with two new rules: 4-option approval menu; dict-based filename mapping for model-tied artifacts.
+
+### Deferred
+- Latent bug in `extract_embeddings.py:should_skip_project`: compares saved-count to total-bbox-count, but invalid crops (small/missing/PIL-fail) reduce saved count → projects with any invalid crop get re-processed every run. Fix: `os.path.exists()` only. Apply after step 1 completes.
+- JetBrains plugin only establishes IDE integration via its button; terminal-launched `claude-work` loses popup diffs. No fix; live with terminal diffs.

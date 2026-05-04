@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 from dinov3.hub.backbones import dinov3_vitb16
+from dinov3.configs import setup_job
+from train_pictime.finetune.finetune_reid import load_backbone
 
 
 
@@ -164,7 +166,21 @@ def save_project(project_dir, filenames, bbox_indices, embeddings):
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 DETECTIONS_FILENAME = "detections.json"
-EMBEDDINGS_FILENAME = "embeddings.npz"
+
+MODEL_SOURCE = "v11_ckpt13k"  # "foundation_b16" | "v11_ckpt13k"
+
+# Maps each backbone source to its output filename — NEVER use a ternary here.
+# Adding a new backbone? Add a row.
+EMBEDDINGS_FILENAME_BY_MODEL = {
+    "foundation_b16": "embeddings.npz",
+    "v11_ckpt13k":    "embeddings_v2.npz",
+}
+EMBEDDINGS_FILENAME = EMBEDDINGS_FILENAME_BY_MODEL[MODEL_SOURCE]
+
+# Paths used only when MODEL_SOURCE == "v11_ckpt13k"
+V11_CKPT_PATH = "/data/AI/Tomer/dinov3/train_pictime/experiments/V11/ckpt/13000"
+PRETRAIN_CFG_PATH = str(Path(__file__).resolve().parents[1] / "train_pictime" / "pictime_vitl_im1k_lin834.yaml")
+
 MAX_BATCH_SIZE = 64
 NUM_WORKERS = 8
 DEBUG = False
@@ -172,8 +188,19 @@ DEBUG = False
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
-    print("Loading ViT-B/16 model...")
-    model = load_model(device=device)
+
+    if MODEL_SOURCE == "foundation_b16":
+        print("Loading ViT-B/16 foundation model...")
+        model = load_model(device=device)
+    elif MODEL_SOURCE == "v11_ckpt13k":
+        print("Loading V11 ViT-S/16 backbone (DCP)...")
+        setup_job(output_dir=None, seed=42)  # required for DCP load
+        model, embed_dim = load_backbone(PRETRAIN_CFG_PATH, V11_CKPT_PATH, which="teacher")
+        model = model.eval().to(device)
+        print(f"V11 backbone loaded, embed_dim={embed_dim}")
+    else:
+        raise ValueError(f"Unknown MODEL_SOURCE: {MODEL_SOURCE}")
+
     tfm = get_eval_transform()
 
     dataset_root = Path("/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]")

@@ -60,14 +60,19 @@ def save_clusters(project_dir, clusters_dict):
 def main():
     project_dirs = sorted(e.path for e in os.scandir(DATASET_ROOT) if e.is_dir())
 
-    skipped, processed, errors = 0, 0, 0
+    skipped, skipped_fixed, processed, errors = 0, 0, 0, 0
     total_clusters, total_noise, total_embs = 0, 0, 0
 
     for project_dir in tqdm(project_dirs, desc="Clustering"):
         emb_path = os.path.join(project_dir, EMBEDDINGS_FILENAME)
         clusters_path = os.path.join(project_dir, CLUSTERS_FILENAME)
+        fixed_path = os.path.join(project_dir, CLUSTERS_FIXED_FILENAME)
 
         if not os.path.exists(emb_path):
+            continue
+        # Reviewer truth wins — don't overwrite or generate alongside.
+        if os.path.exists(fixed_path):
+            skipped_fixed += 1
             continue
         if os.path.exists(clusters_path) and not FORCE:
             skipped += 1
@@ -84,13 +89,29 @@ def main():
             tqdm.write(f"Error in {project_dir}: {e}")
             errors += 1
 
-    print(f"\nDone. Processed: {processed}, Skipped: {skipped}, Errors: {errors}")
+    print(f"\nDone. Processed: {processed}, Skipped (already done): {skipped}, "
+          f"Skipped (clusters_fixed present): {skipped_fixed}, Errors: {errors}")
     print(f"Total embeddings: {total_embs}, Clusters: {total_clusters}, Noise points: {total_noise}")
 
 
 
-EMBEDDINGS_FILENAME = "embeddings.npz"
-CLUSTERS_FILENAME = "clusters.json"
+MODEL_SOURCE = "v11_ckpt13k"  # "foundation_b16" | "v11_ckpt13k"
+
+# Maps each backbone source to its input/output filenames — NEVER use ternaries here.
+EMBEDDINGS_FILENAME_BY_MODEL = {
+    "foundation_b16": "embeddings.npz",
+    "v11_ckpt13k":    "embeddings_v2.npz",
+}
+CLUSTERS_FILENAME_BY_MODEL = {
+    "foundation_b16": "clusters.json",
+    "v11_ckpt13k":    "clusters_v2.json",
+}
+EMBEDDINGS_FILENAME = EMBEDDINGS_FILENAME_BY_MODEL[MODEL_SOURCE]
+CLUSTERS_FILENAME = CLUSTERS_FILENAME_BY_MODEL[MODEL_SOURCE]
+
+# Reviewer-corrected clusters take precedence — never overwrite this file.
+CLUSTERS_FIXED_FILENAME = "clusters_fixed.json"
+
 DATASET_ROOT = Path("/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]")
 # DATASET_ROOT = Path("/data/AI/Tomer/UI_dataset_view/data") # for testing
 MIN_CLUSTER_SIZE = 3
