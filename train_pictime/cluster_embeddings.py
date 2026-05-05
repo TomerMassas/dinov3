@@ -116,6 +116,6 @@ DATASET_ROOT = Path("/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/P
 # DATASET_ROOT = Path("/data/AI/Tomer/UI_dataset_view/data") # for testing
 MIN_CLUSTER_SIZE = 3
 MIN_SAMPLES = None
-FORCE = False
+FORCE = False #force re-clustering regardless if cluster.json exists already (does NOT override reviewrs work!!)
 if __name__ == "__main__":
     main()

@@ -14,9 +14,31 @@ from pathlib import Path
 import numpy as np
 from tqdm import tqdm
 
+MODEL_SOURCE = "v11_ckpt13k"  # "foundation_b16" | "v11_ckpt13k"
+
+# Maps each backbone source to its input/output filenames — NEVER use ternaries here.
+CLUSTERS_FILENAME_BY_MODEL = {
+    "foundation_b16": "clusters.json",
+    "v11_ckpt13k":    "clusters_v2.json",
+}
+SINGLE_CLUSTER_FILENAME_BY_MODEL = {
+    "foundation_b16": "single_cluster_projects.json",
+    "v11_ckpt13k":    "single_cluster_projects_v2.json",
+}
+INDEX_FILENAME_BY_MODEL = {
+    "foundation_b16": "reid_index.npz",
+    "v11_ckpt13k":    "reid_index_v2.npz",
+}
+CLUSTERS_FILENAME = CLUSTERS_FILENAME_BY_MODEL[MODEL_SOURCE]
+SINGLE_CLUSTER_FILENAME = SINGLE_CLUSTER_FILENAME_BY_MODEL[MODEL_SOURCE]
+INDEX_FILENAME = INDEX_FILENAME_BY_MODEL[MODEL_SOURCE]
+
+# Reviewer-corrected clusters always win over per-version clusters.
+CLUSTERS_FIXED_FILENAME = "clusters_fixed.json"
+
 DATA_BASE_PATH = Path("/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]")
-FILTER_PATH = Path("/data/AI/Tomer/dinov3/train_pictime/finetune/single_cluster_projects.json")
-OUTPUT_PATH = DATA_BASE_PATH / "reid_index.npz"
+FILTER_PATH = Path("/data/AI/Tomer/dinov3/train_pictime/finetune") / SINGLE_CLUSTER_FILENAME
+OUTPUT_PATH = DATA_BASE_PATH / INDEX_FILENAME
 
 
 def build_index(data_base: Path) -> list[dict]:
@@ -34,9 +56,9 @@ def build_index(data_base: Path) -> list[dict]:
             skipped += 1
             continue
 
-        cluster_path = project_dir / "clusters_fixed.json"
+        cluster_path = project_dir / CLUSTERS_FIXED_FILENAME
         if not cluster_path.exists():
-            cluster_path = project_dir / "clusters.json"
+            cluster_path = project_dir / CLUSTERS_FILENAME
         if not cluster_path.exists():
             skipped += 1
             continue
@@ -65,6 +87,7 @@ def build_index(data_base: Path) -> list[dict]:
                 samples.append({
                     "image_path": image_path,
                     "bbox": bbox,
+                    "bbox_index": bbox_idx,
                     "project_id": project_id,
                     "cluster_id": cluster_id,
                 })
@@ -79,6 +102,7 @@ def main():
     # Save as columnar numpy arrays for instant loading
     image_paths = np.array([s["image_path"] for s in samples], dtype=object)
     bboxes = np.array([s["bbox"] for s in samples], dtype=np.float32)  # [N, 4]
+    bbox_indices = np.array([s["bbox_index"] for s in samples], dtype=np.int32)
     project_ids = np.array([s["project_id"] for s in samples], dtype=object)
     cluster_ids = np.array([s["cluster_id"] for s in samples], dtype=np.int32)
 
@@ -87,6 +111,7 @@ def main():
         OUTPUT_PATH,
         image_paths=image_paths,
         bboxes=bboxes,
+        bbox_indices=bbox_indices,
         project_ids=project_ids,
         cluster_ids=cluster_ids,
     )

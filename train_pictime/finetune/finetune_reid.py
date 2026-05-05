@@ -275,11 +275,11 @@ def main():
 
     # Data — load from pre-built index (created by build_index.py)
     print("Loading index...")
-    index_path = Path(cfg.data_base_path) / "reid_index.npz"
-    image_paths, bboxes, project_ids, cluster_ids = load_index(index_path)
+    index_path = Path(cfg.data_base_path) / cfg.get("reid_index_filename", "reid_index.npz")
+    image_paths, bboxes, bbox_indices, project_ids, cluster_ids = load_index(index_path)
     ########################################################################################## TODO comment out
     # tmp_trip = 10000
-    # image_paths, bboxes, project_ids, cluster_ids = image_paths[:tmp_trip], bboxes[:tmp_trip], project_ids[:tmp_trip], cluster_ids[:tmp_trip]
+    # image_paths, bboxes, bbox_indices, project_ids, cluster_ids = image_paths[:tmp_trip], bboxes[:tmp_trip], bbox_indices[:tmp_trip], project_ids[:tmp_trip], cluster_ids[:tmp_trip]
     ##############################################################################################################################
     print(f"Total samples: {len(image_paths)}")
 
@@ -291,14 +291,32 @@ def main():
     print(f"Train: {len(train_project_ids)} projects ({train_mask.sum()} samples), "
           f"Val: {len(val_project_ids)} projects ({val_mask.sum()} samples)")
 
+    # Curriculum config
+    curriculum_cfg = cfg.get("curriculum", None)
+    curriculum_enabled = bool(curriculum_cfg and curriculum_cfg.get("enabled", False))
+
+    # Curriculum requires a centroid for every train identity, but cluster_id=-1
+    # is excluded from build_centroids (no meaningful centroid for noise). Reviewer-
+    # fixed -1 entries are valid in vanilla SupCon but would crash curriculum init,
+    # so drop them from the train mask only when curriculum is on.
+    if curriculum_enabled:
+        n_minus_one = int((cluster_ids[train_mask] == -1).sum())
+        train_mask = train_mask & (cluster_ids != -1)
+        print(f"Curriculum enabled: filtered {n_minus_one} cluster_id=-1 train samples; "
+              f"{int(train_mask.sum())} train samples remain")
+
+    centroid_distances_filename = (curriculum_cfg.centroid_distances_filename if curriculum_enabled else None)
+
     # Train dataset
     train_labels = build_global_identity_map(project_ids[train_mask], cluster_ids[train_mask])
     num_classes = int(train_labels.max()) + 1  # labels are contiguous 0..N-1 by construction
     print(f"Num classes: {num_classes}")
     train_dataset = ReIDCropDataset(
-                                    image_paths[train_mask], bboxes[train_mask], project_ids[train_mask],
-                                    train_labels, transform=get_train_transform(), min_k=cfg.K,
-                                )
+        image_paths[train_mask], bboxes[train_mask], bbox_indices[train_mask],
+        project_ids[train_mask], cluster_ids[train_mask], train_labels,
+        transform=get_train_transform(), min_k=cfg.K,
+        centroid_distances_filename=centroid_distances_filename,
+    )
     print(f"Valid projects for sampling: {len(train_dataset.valid_projects)}")
     print(f"Valid identities (>= {cfg.K} samples): "
           f"{len([v for v in train_dataset.identity_to_indices.values() if len(v) >= cfg.K])}")
@@ -309,7 +327,12 @@ def main():
     total_iters = cfg.num_epochs * iters_per_epoch
     print(f"Iters per epoch: {iters_per_epoch}, Total iters: {total_iters}")
 
-    sampler = PKBatchSampler(train_dataset, P=cfg.P, K=cfg.K, num_batches=total_iters, seed=cfg.seed)
+    sampler = PKBatchSampler(
+        train_dataset, P=cfg.P, K=cfg.K, num_batches=total_iters, seed=cfg.seed,
+        curriculum_p_start=(curriculum_cfg.p_start if curriculum_enabled else 1.0),
+        curriculum_p_end=(curriculum_cfg.p_end if curriculum_enabled else 1.0),
+        curriculum_end_frac=(curriculum_cfg.end_frac if curriculum_enabled else 0.3),
+    )
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_sampler=sampler,
@@ -317,10 +340,12 @@ def main():
         pin_memory=True,
     )
 
-    # Eval
+    # Eval — note: val_mask uses the ORIGINAL train_mask vs val_mask split, not the
+    # curriculum-filtered train_mask, so val never loses cluster_id=-1 samples.
     evaluator = ReIDEvaluator(
         image_paths=image_paths[val_mask],
         bboxes=bboxes[val_mask],
+        bbox_indices=bbox_indices[val_mask],
         project_ids=project_ids[val_mask],
         cluster_ids=cluster_ids[val_mask],
         seed=cfg.seed,
@@ -459,6 +484,14 @@ def main():
                 "train/loss": loss.item(),
                 "train/lr": lr,
             }
+            # Curriculum p — duplicates the formula in PKBatchSampler.__iter__; keep aligned.
+            if curriculum_enabled:
+                ramp_end = max(1, int(total_iters * curriculum_cfg.end_frac))
+                if it < ramp_end:
+                    cur_p = curriculum_cfg.p_start + (curriculum_cfg.p_end - curriculum_cfg.p_start) * (it / ramp_end)
+                else:
+                    cur_p = curriculum_cfg.p_end
+                metrics_log["train/curriculum_p"] = cur_p
             if arcface_target_margin_rad is not None:
                 metrics_log["train/arcface_margin_deg"] = float(np.degrees(criterion.margin))
                 # With ArcFace, param_groups[1] is the classifier (frozen path);

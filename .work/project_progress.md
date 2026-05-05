@@ -236,3 +236,91 @@ Modify-in-place pattern, `MODEL_SOURCE → filename` dict mapping in each script
 ### Deferred
 - Latent bug in `extract_embeddings.py:should_skip_project`: compares saved-count to total-bbox-count, but invalid crops (small/missing/PIL-fail) reduce saved count → projects with any invalid crop get re-processed every run. Fix: `os.path.exists()` only. Apply after step 1 completes.
 - JetBrains plugin only establishes IDE integration via its button; terminal-launched `claude-work` loses popup diffs. No fix; live with terminal diffs.
+
+## 2026-05-05 — Curriculum sampler shipped end-to-end; first trial launched
+
+### Pipeline complete: v2 data prep → curriculum-aware sampler
+Stage-by-stage build matches the design locked yesterday.
+
+- **`train_pictime/build_centroids.py` (new)** — per-project per-cluster centroid
+  + sorted cosine distances. Output: `crop_distances_v2.json`. Loud-fail on
+  missing `(filename, bbox_index)` entries. Skips `cluster_id == -1` (noise).
+  `MODEL_SOURCE` dict pattern, atomic save, `FORCE` flag.
+  - Run on full dataset: 53,650 projects processed, 152 errors (cascade from
+    the n<3 cluster_embeddings crash). Tomer chose not to fix the n<3 guard
+    in `cluster_embeddings.py:25` — those projects are <3 detections, useless
+    for ReID anyway, and would be filtered by `min_k=4`.
+
+- **`train_pictime/finetune/build_index.py`** — refactored to v2 mode.
+  Added `MODEL_SOURCE` + 3 `*_BY_MODEL` dicts (`CLUSTERS`/`SINGLE_CLUSTER`/
+  `INDEX`). New `bbox_indices` field in the npz. Output:
+  `reid_index_v2.npz`. Verified: 8317 projects, 306,888 samples.
+
+- **`train_pictime/finetune/reid_dataset.py`** —
+  - `load_index()` returns 5-tuple incl. `bbox_indices`.
+  - `ReIDCropDataset.__init__` takes `bbox_indices`, `cluster_ids`,
+    `centroid_distances_filename`. When the filename is given, builds
+    `identity_to_sorted_indices: dict[global_id, list[dataset_idx]]` —
+    per-identity dataset indices ordered by ascending centroid distance.
+    Loud-fail on missing identities or unmatchable entries.
+  - `PKBatchSampler` adds `curriculum_p_start/p_end/end_frac` (defaults
+    1.0/1.0/0.3 = no-op). Linear ramp `p(t)` over `end_frac * num_batches`
+    iters, then flat. Pool slice `pool = sorted_idx[:max(K, ceil(p*len))]`
+    — clamp guarantees ≥K crops (graded effect on small identities, accepted
+    as a known limitation per pushback).
+
+- **`train_pictime/finetune/reid_evaluator.py`** — added `bbox_indices` arg,
+  forwards `centroid_distances_filename=None` (eval is curriculum-free; -1
+  identities kept in val pool).
+
+- **`train_pictime/finetune/reid_config.yaml`** — `reid_index_filename`
+  (defaults to v2) + `curriculum:` block at the bottom (`enabled` defaults
+  false; vanilla regression preserved).
+
+- **`train_pictime/finetune/finetune_reid.py`** — config-driven index path,
+  5-tuple destructure, train-only `cluster_id == -1` filter when curriculum
+  is on, dataset/sampler arg pass-through, optional `train/curriculum_p`
+  W&B log every 10 iters (formula duplicated from sampler with a header
+  comment flagging the duplication).
+
+### Pushback session — head-vs-backbone curriculum framing retracted
+I flagged that the unfreeze step at iter 2000 lands inside the curriculum
+ramp window (ends iter 7000 at p=0.5) and could "anchor the backbone to
+easy data". Tomer pushed back: curriculum philosophy doesn't distinguish
+between head and backbone training. I retracted — that framing was
+overcooked. The legitimate (but mild) concern is in the *opposite*
+direction: backbone has strong pretrained knowledge from V11, and
+curriculum-easy-first could narrow that, but `lr_backbone=1e-4` (10×
+smaller than head) limits per-step degradation. Not a blocker.
+
+### Trial 1 launched
+Config:
+- `experiment_tag: curriculum_p0.1to0.5_frac0.7`
+- `experiment_group: trial_curriculum_v1`
+- `p_start=0.1, p_end=0.5, end_frac=0.7`
+- Backbone: V11/ckpt/13000 (same as Trial 1 V11 baseline)
+- Mode C unfreeze: 4 blocks @ iter 2000 (same as Trial 1)
+
+Index pool: 8317 single-cluster v2 projects; ~16K identities expected
+post -1 filter.
+
+### Tradeoffs accepted (won't be fixed)
+- **No "vanilla on v2" baseline** — Trial 1 V11 (mAP 0.62) was on v1 index;
+  curriculum is on v2 index. Comparison entangles curriculum + data-source
+  shift. Tomer: "we will have many more trials from now on" — accepted.
+- **Curriculum clamp neuters small identities** — `max(K, ceil(p*len))`
+  means identities with <K/p_start crops feel no curriculum. With K=4 and
+  p_start=0.1, threshold = 40 crops. Many v2 identities are smaller →
+  graded effect. Accepted as documented.
+- **n<3 cluster crash** in `cluster_embeddings.py` left unfixed (152
+  projects, useless for ReID anyway).
+
+### Side task — UI repo prompt
+Drafted a self-contained prompt for the reviewer UI repo (separate Claude
+session) to add a `clusters_fixed.json → clusters_v2.json → clusters.json`
+resolver hierarchy. Goal: reviewers get cleaner V11 starting clusters on
+unreviewed projects.
+
+### Open
+Trial 1 running on the VM. Awaiting first-iter sanity (curriculum_p chart,
+filtered-sample-count log) and eval-vs-baseline comparison.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 from collections import defaultdict
 from pathlib import Path
@@ -31,14 +32,21 @@ def load_index(index_path: str | Path):
     """Load pre-built .npz index (created by build_index.py).
 
     Returns:
-        image_paths: np.ndarray of str [N]
-        bboxes:      np.ndarray float32 [N, 4]
-        project_ids: np.ndarray of str [N]
-        cluster_ids: np.ndarray int32 [N]
+        image_paths:  np.ndarray of str [N]
+        bboxes:       np.ndarray float32 [N, 4]
+        bbox_indices: np.ndarray int32 [N]
+        project_ids:  np.ndarray of str [N]
+        cluster_ids:  np.ndarray int32 [N]
     """
     import numpy as np
     data = np.load(index_path, allow_pickle=True)
-    return data["image_paths"], data["bboxes"], data["project_ids"], data["cluster_ids"]
+    return (
+        data["image_paths"],
+        data["bboxes"],
+        data["bbox_indices"],
+        data["project_ids"],
+        data["cluster_ids"],
+    )
 
 
 def load_project(project_dir: Path) -> list[ReIDSample]:
@@ -112,16 +120,35 @@ def build_global_identity_map(project_ids, cluster_ids):
 class ReIDCropDataset(Dataset):
     """Dataset that returns cropped person bboxes with global identity labels."""
 
-    def __init__(self, image_paths, bboxes, project_ids, labels, transform=None, min_k: int = 1):
+    def __init__(
+        self,
+        image_paths,
+        bboxes,
+        bbox_indices,
+        project_ids,
+        cluster_ids,
+        labels,
+        transform=None,
+        min_k: int = 1,
+        centroid_distances_filename: str | None = None,
+    ):
         """
         Args:
-            image_paths: np.ndarray of str [N]
-            bboxes:      np.ndarray float32 [N, 4]
-            project_ids: np.ndarray of str [N]
-            labels:      np.ndarray int32 [N] — global identity IDs
+            image_paths:  np.ndarray of str [N]
+            bboxes:       np.ndarray float32 [N, 4]
+            bbox_indices: np.ndarray int32 [N] — index of the bbox in detections.json for that image
+            project_ids:  np.ndarray of str [N]
+            cluster_ids:  np.ndarray int32 [N] — per-project cluster id (for curriculum lookup)
+            labels:       np.ndarray int32 [N] — global identity IDs
+            centroid_distances_filename:
+                If given, load each project's `<project_dir>/<filename>` and build
+                `identity_to_sorted_indices` (per-identity dataset indices ordered by
+                ascending cosine distance to the cluster centroid). Required by
+                PKBatchSampler when curriculum is active. None disables curriculum.
         """
         self.image_paths = image_paths
         self.bboxes = bboxes
+        self.bbox_indices = bbox_indices
         self.project_ids = project_ids
         self.labels = labels
         self.transform = transform
@@ -142,6 +169,76 @@ class ReIDCropDataset(Dataset):
 
         # Projects that have at least 1 valid identity
         self.valid_projects = [p for p, ids in self.project_to_identities.items() if len(ids) > 0]
+
+        # Curriculum: per-identity dataset indices sorted by distance to centroid
+        if centroid_distances_filename is None:
+            self.identity_to_sorted_indices: dict[int, list[int]] | None = None
+        else:
+            self.identity_to_sorted_indices = self._build_sorted_indices(
+                image_paths, bbox_indices, project_ids, cluster_ids, labels,
+                centroid_distances_filename,
+            )
+
+    @staticmethod
+    def _build_sorted_indices(
+        image_paths, bbox_indices, project_ids, cluster_ids, labels,
+        centroid_distances_filename,
+    ) -> dict[int, list[int]]:
+        """For each global identity, return its dataset indices sorted by ascending
+        cosine distance to the cluster centroid (read from per-project distances file).
+
+        Crashes loudly if any identity is missing from the distances file or any
+        (filename, bbox_index) entry can't be matched to a dataset row.
+        """
+        # Reverse lookup: (project_id, filename, bbox_index) -> dataset idx
+        rev_lookup: dict[tuple[str, str, int], int] = {}
+        for i in range(len(image_paths)):
+            fname = Path(str(image_paths[i])).name
+            key = (str(project_ids[i]), fname, int(bbox_indices[i]))
+            rev_lookup[key] = i
+
+        # First-sample-per-project (used to derive the project directory path)
+        project_to_first_idx: dict[str, int] = {}
+        for i in range(len(image_paths)):
+            pid = str(project_ids[i])
+            if pid not in project_to_first_idx:
+                project_to_first_idx[pid] = i
+
+        # Identity -> (project_id, cluster_id)
+        identity_to_proj_cluster: dict[int, tuple[str, int]] = {}
+        for i in range(len(labels)):
+            gid = int(labels[i])
+            if gid not in identity_to_proj_cluster:
+                identity_to_proj_cluster[gid] = (str(project_ids[i]), int(cluster_ids[i]))
+
+        project_distances_cache: dict[str, dict[int, list]] = {}
+        identity_to_sorted_indices: dict[int, list[int]] = {}
+
+        for gid, (proj_id, cluster_id) in identity_to_proj_cluster.items():
+            if proj_id not in project_distances_cache:
+                proj_dir = Path(str(image_paths[project_to_first_idx[proj_id]])).parent.parent
+                with open(proj_dir / centroid_distances_filename) as f:
+                    raw = json.load(f)
+                project_distances_cache[proj_id] = {int(k): v for k, v in raw.items()}
+
+            cd = project_distances_cache[proj_id]
+            if cluster_id not in cd:
+                raise RuntimeError(
+                    f"Identity {gid} (project={proj_id}, cluster={cluster_id}) "
+                    f"has no entry in {centroid_distances_filename}"
+                )
+
+            sorted_idxs: list[int] = []
+            for entry in cd[cluster_id]:
+                key = (proj_id, entry["filename"], int(entry["bbox_index"]))
+                if key not in rev_lookup:
+                    raise RuntimeError(
+                        f"Centroid entry {key} (identity={gid}) not found in dataset"
+                    )
+                sorted_idxs.append(rev_lookup[key])
+            identity_to_sorted_indices[gid] = sorted_idxs
+
+        return identity_to_sorted_indices
 
     def __len__(self):
         return len(self.labels)
@@ -169,14 +266,34 @@ class PKBatchSampler(Sampler):
 
     All negatives are cross-project (guaranteed different people).
     Identities with < K samples are never selected.
+
+    Curriculum (optional): when `curriculum_p_start != 1.0` or `curriculum_p_end != 1.0`,
+    each identity's pool is restricted to the closest fraction `p(t)` of its crops to
+    the cluster centroid. `p(t)` ramps linearly from `curriculum_p_start` to
+    `curriculum_p_end` over the first `curriculum_end_frac * num_batches` iterations,
+    then stays at `curriculum_p_end`. `max(K, ceil(p * len))` ensures the pool is
+    always large enough to sample K crops.
     """
 
-    def __init__(self, dataset: ReIDCropDataset, P: int, K: int, num_batches: int, seed: int = 42):
+    def __init__(
+        self,
+        dataset: ReIDCropDataset,
+        P: int,
+        K: int,
+        num_batches: int,
+        seed: int = 42,
+        curriculum_p_start: float = 1.0,
+        curriculum_p_end: float = 1.0,
+        curriculum_end_frac: float = 0.3,
+    ):
         self.dataset = dataset
         self.P = P
         self.K = K
         self.num_batches = num_batches
         self.rng = random.Random(seed)
+        self.p_start = curriculum_p_start
+        self.p_end = curriculum_p_end
+        self.end_frac = curriculum_end_frac
 
         if len(dataset.valid_projects) < P:
             raise ValueError(
@@ -184,14 +301,34 @@ class PKBatchSampler(Sampler):
                 f"but only {len(dataset.valid_projects)} available."
             )
 
+        curriculum_active = (curriculum_p_start != 1.0) or (curriculum_p_end != 1.0)
+        if curriculum_active and dataset.identity_to_sorted_indices is None:
+            raise ValueError(
+                "Curriculum is active (p_start or p_end != 1.0) but the dataset has "
+                "no centroid distances. Pass `centroid_distances_filename` to ReIDCropDataset."
+            )
+        self._use_sorted = dataset.identity_to_sorted_indices is not None
+
     def __iter__(self):
-        for _ in range(self.num_batches):
+        ramp_end_iter = max(1, int(self.num_batches * self.end_frac))
+        for t in range(self.num_batches):
+            if t < ramp_end_iter:
+                p = self.p_start + (self.p_end - self.p_start) * (t / ramp_end_iter)
+            else:
+                p = self.p_end
+
             projects = self.rng.sample(self.dataset.valid_projects, self.P)
             batch = []
             for proj in projects:
                 identity = self.rng.choice(self.dataset.project_to_identities[proj])
-                indices = self.dataset.identity_to_indices[identity]
-                chosen = self.rng.sample(indices, self.K)
+                if self._use_sorted:
+                    sorted_idx = self.dataset.identity_to_sorted_indices[identity]
+                    pool_size = max(self.K, math.ceil(p * len(sorted_idx)))
+                    pool = sorted_idx[:pool_size]
+                    chosen = self.rng.sample(pool, self.K)
+                else:
+                    indices = self.dataset.identity_to_indices[identity]
+                    chosen = self.rng.sample(indices, self.K)
                 batch.extend(chosen)
             yield batch
 

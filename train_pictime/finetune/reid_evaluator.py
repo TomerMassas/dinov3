@@ -85,6 +85,7 @@ class ReIDEvaluator:
         self,
         image_paths,
         bboxes,
+        bbox_indices,
         project_ids,
         cluster_ids,
         seed: int,
@@ -103,8 +104,9 @@ class ReIDEvaluator:
 
         labels = build_global_identity_map(project_ids, cluster_ids)
         self.dataset = ReIDCropDataset(
-            image_paths, bboxes, project_ids, labels,
+            image_paths, bboxes, bbox_indices, project_ids, cluster_ids, labels,
             transform=get_val_transform(), min_k=min_k,
+            centroid_distances_filename=None,
         )
 
         # Split query / gallery: 1 query per identity, rest gallery
