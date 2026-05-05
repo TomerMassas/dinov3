@@ -324,3 +324,47 @@ unreviewed projects.
 ### Open
 Trial 1 running on the VM. Awaiting first-iter sanity (curriculum_p chart,
 filtered-sample-count log) and eval-vs-baseline comparison.
+
+### Trial 1 result — curriculum lost decisively at iter 7500
+At iter 7500 (right after curriculum ramp completes at iter 6300):
+
+| Metric | V11 baseline (brown) | Curriculum p0.1→0.5 (pink) | Δ |
+|---|---|---|---|
+| eval/mAP | 0.631 | 0.555 | **−0.076** |
+| eval/Rank-1 | 0.821 | 0.743 | **−0.078** |
+| eval/Rank-5 | 0.912 | 0.859 | −0.053 |
+| eval/Rank-10 | 0.944 | 0.900 | −0.044 |
+| eval/silhouette | +0.196 | +0.126 | −0.07 |
+
+Both runs still climbing at 7500 — neither plateaued — but curriculum's gap stays
+roughly constant, not closing. No sharp inflection at the curriculum-end iter.
+
+### The train/loss signature flips the diagnosis
+**`train/loss` is consistently LOWER on pink (~1.0–1.3) than brown (~1.3–1.5)**,
+yet eval is worse. Textbook curriculum-overfit-to-easy-mode signature:
+- Lower train loss because pink sees mechanically-easier crops (pool restriction).
+- Worse eval because the representation memorizes the easy mode instead of
+  learning the variation that matters at query time.
+- Even past iter 7000 (when p locks at 0.5) the gap doesn't close — early-iter
+  narrow distribution has already shaped the weights.
+
+This is stronger than yesterday's pushback discussion predicted. If v2 data
+shift alone were the cause, pink train loss would be *higher* (harder data →
+harder fit). We're seeing the opposite. **Curriculum itself is the likely
+culprit, not the v2 data shift.**
+
+### `train/curriculum_p` ✓
+Clean linear ramp 0.1 → 0.5 over iters 0–6300, flat at 0.5 thereafter.
+Schedule formula is correct (ramp_end = 0.7 × 9000 ≈ 6300).
+
+### Vanilla-on-v2 launched
+To confirm attribution (curriculum vs data shift) — same config as the curriculum
+run with `curriculum.enabled: false`, exp_tag `vanilla_v11ckpt13k_v2index`,
+group `trial_curriculum_v1` (overlays on same plot).
+- If vanilla-on-v2 ≈ pink (0.555) → curriculum is neutral, loss is data.
+- If vanilla-on-v2 ≈ brown (0.62) → curriculum is actively hurting.
+- Working hypothesis based on train-loss signature: vanilla-on-v2 is closer to brown.
+
+### New rule (working guidelines)
+"When committing, stage all modified + untracked files (`git add -A`).
+Don't pick subsets and don't ask which files to include." Saved to feedback memory.
