@@ -1,6 +1,6 @@
 # --- W&B ---
 wandb_project: "person-reid-finetune"
-experiment_tag: "curriculum_p0.1to0.5_frac0.7"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
+experiment_tag: "vanilla_v11ckpt13k_v2index"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
 experiment_group: "trial_curriculum_v1"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
 
 # --- Paths ---
@@ -63,7 +63,7 @@ ckpt_max_keep: 3             # keep best 3 by eval metric (mAP), not most recent
 # fixed-fraction ablation control. Set p_start=p_end=1.0 (or enabled=false)
 # for vanilla sampling. -1-cluster train samples are filtered when enabled.
 curriculum:
-  enabled: true
+  enabled: false
   p_start: 0.1
   p_end: 0.5
   end_frac: 0.7
