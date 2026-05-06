@@ -1,6 +1,6 @@
 # --- W&B ---
 wandb_project: "person-reid-finetune"
-experiment_tag: "vanilla_v11ckpt13k_v2index"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
+experiment_tag: "curriculum_p0.5to0.8_frac0.7_v11ckpt13k_v2index"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
 experiment_group: "trial_curriculum_v1"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
 
 # --- Paths ---
@@ -22,8 +22,8 @@ proj_output_dim: 128
 #   Head trains first. At iteration N, the last unfreeze_n_blocks transformer
 #   blocks + final layer norm are unfrozen with a lower lr (lr_backbone).
 freeze_backbone: true
-unfreeze_after: 2000         # iteration to unfreeze (0 = never)
-unfreeze_n_blocks: 4         # last N transformer blocks to unfreeze
+unfreeze_after: 1000         # iteration to unfreeze (0 = never)
+unfreeze_n_blocks: 6         # last N transformer blocks to unfreeze
 
 # --- Training ---
 num_epochs: 10
@@ -50,6 +50,12 @@ seed: 42
 # --- Eval ---
 val_ratio: 0.05
 silhouette_max_samples: 10000   # cap for stratified silhouette subsample (0 = skip)
+# Tiered eval: per-identity restrict val pool to top-T fraction closest to centroid.
+# Each tier produces its own mAP/Rank/silhouette (e.g. eval/mAP_top50). cluster_id=-1
+# identities are dropped from val (no centroid). Set eval_centroid_distances_filename
+# to null to disable tiering and fall back to single full-pool eval (legacy behavior).
+eval_tiers: [0.5, 0.75, 1.0]
+eval_centroid_distances_filename: "crop_distances_v2.json"
 
 # --- Checkpointing ---
 ckpt_every: 500
@@ -63,8 +69,8 @@ ckpt_max_keep: 3             # keep best 3 by eval metric (mAP), not most recent
 # fixed-fraction ablation control. Set p_start=p_end=1.0 (or enabled=false)
 # for vanilla sampling. -1-cluster train samples are filtered when enabled.
 curriculum:
-  enabled: false
-  p_start: 0.1
-  p_end: 0.5
+  enabled: true
+  p_start: 0.5
+  p_end: 0.8
   end_frac: 0.7
   centroid_distances_filename: "crop_distances_v2.json"

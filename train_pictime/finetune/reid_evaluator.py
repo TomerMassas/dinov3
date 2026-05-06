@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 from collections import defaultdict
 from pathlib import Path
@@ -78,8 +79,19 @@ def compute_cmc_map(
 # Evaluator
 # ---------------------------------------------------------------------------
 
+def _tier_suffix(tier: float) -> str:
+    return f"top{int(round(tier * 100))}"
+
+
 class ReIDEvaluator:
-    """In-process ReID evaluator. Call maybe_eval() from the training loop."""
+    """In-process ReID evaluator. Call maybe_eval() from the training loop.
+
+    Tiered eval (when `centroid_distances_filename` is given): each tier T in
+    `eval_tiers` restricts every identity's pool to the top-T fraction of crops
+    closest to the cluster centroid (V11-derived), then runs Q/G split + metrics
+    on the restricted pool. cluster_id=-1 identities are dropped (no centroid).
+    All tiers share the same identity universe so comparisons are clean.
+    """
 
     def __init__(
         self,
@@ -93,37 +105,76 @@ class ReIDEvaluator:
         batch_size: int = 64,
         min_k: int = 2,  # identities need >= 2 samples (1 query + 1 gallery)
         silhouette_max_samples: int = 8000,
+        centroid_distances_filename: str | None = None,
+        eval_tiers: list[float] | None = None,
     ):
         self.device = device
         self.batch_size = batch_size
         self.seed = seed
         self.silhouette_max_samples = silhouette_max_samples
+        self.min_k = min_k
 
         if len(image_paths) == 0:
             raise ValueError("No validation samples found")
+
+        # Tiered eval requires centroid distances. Drop cluster_id=-1 (no centroid)
+        # so all tiers share the same identity universe.
+        if centroid_distances_filename is not None:
+            keep_mask = cluster_ids != -1
+            n_dropped = int((~keep_mask).sum())
+            if n_dropped > 0:
+                print(f"ReID Eval: dropping {n_dropped} cluster_id=-1 samples (no centroid)")
+            image_paths = image_paths[keep_mask]
+            bboxes = bboxes[keep_mask]
+            bbox_indices = bbox_indices[keep_mask]
+            project_ids = project_ids[keep_mask]
+            cluster_ids = cluster_ids[keep_mask]
+            self.eval_tiers = sorted(eval_tiers) if eval_tiers else [1.0]
+        else:
+            # Backwards-compat: single full-pool eval, no tier filtering.
+            self.eval_tiers = [1.0]
 
         labels = build_global_identity_map(project_ids, cluster_ids)
         self.dataset = ReIDCropDataset(
             image_paths, bboxes, bbox_indices, project_ids, cluster_ids, labels,
             transform=get_val_transform(), min_k=min_k,
-            centroid_distances_filename=None,
+            centroid_distances_filename=centroid_distances_filename,
         )
 
-        # Split query / gallery: 1 query per identity, rest gallery
+        # Per-tier (query_indices, gallery_indices). Same RNG seed across tiers
+        # so the random query pick is consistent given the same pool.
         rng = random.Random(seed)
-        identity_to_indices = self.dataset.identity_to_indices
+        self.tier_to_qg: dict[float, tuple[list[int], list[int]]] = {}
 
-        self.query_indices = []
-        self.gallery_indices = []
-        for gid, idx_list in identity_to_indices.items():
-            if len(idx_list) < min_k:
-                continue
-            chosen = rng.choice(idx_list)
-            self.query_indices.append(chosen)
-            self.gallery_indices.extend([i for i in idx_list if i != chosen])
-
-        print(f"ReID Eval: {len(self.query_indices)} queries, {len(self.gallery_indices)} gallery, "
-              f"{len(identity_to_indices)} identities")
+        if centroid_distances_filename is not None:
+            sorted_indices_map = self.dataset.identity_to_sorted_indices
+            assert sorted_indices_map is not None, \
+                "Tiered eval requires identity_to_sorted_indices on the dataset"
+            for tier in self.eval_tiers:
+                q_indices, g_indices = [], []
+                for gid, sorted_idx_list in sorted_indices_map.items():
+                    keep = max(min_k, math.ceil(tier * len(sorted_idx_list)))
+                    pool = sorted_idx_list[:keep]
+                    if len(pool) < min_k:
+                        continue
+                    chosen = rng.choice(pool)
+                    q_indices.append(chosen)
+                    g_indices.extend([i for i in pool if i != chosen])
+                self.tier_to_qg[tier] = (q_indices, g_indices)
+                print(f"ReID Eval [tier={_tier_suffix(tier)}]: "
+                      f"{len(q_indices)} queries, {len(g_indices)} gallery, "
+                      f"{len(q_indices)} identities")
+        else:
+            q_indices, g_indices = [], []
+            for gid, idx_list in self.dataset.identity_to_indices.items():
+                if len(idx_list) < min_k:
+                    continue
+                chosen = rng.choice(idx_list)
+                q_indices.append(chosen)
+                g_indices.extend([i for i in idx_list if i != chosen])
+            self.tier_to_qg[1.0] = (q_indices, g_indices)
+            print(f"ReID Eval: {len(q_indices)} queries, {len(g_indices)} gallery, "
+                  f"{len(q_indices)} identities")
 
     @torch.no_grad()
     def _extract(self, backbone, proj_head, indices: list[int]) -> tuple[torch.Tensor, torch.Tensor]:
@@ -211,42 +262,85 @@ class ReIDEvaluator:
         iteration: int,
         wandb_run: Any = None,
     ) -> dict[str, float] | None:
-        """Run evaluation if due this iteration. Returns metrics or None."""
+        """Run evaluation if due this iteration. Returns flat dict or None.
+
+        Returns per-tier keys like `mAP_top50`, `silhouette_top100`, plus
+        a top-level `silhouette` mirror of the tier-100 value (for the
+        BestCheckpointTracker which reads `metrics["silhouette"]`).
+        """
         if iteration <= 0:
             return None
 
         was_training_bb = backbone.training
         was_training_ph = proj_head.training
 
-        all_indices = self.query_indices + self.gallery_indices
+        # Extract once over the union of all tier indices (saves repeated forward passes).
+        union: set[int] = set()
+        for q, g in self.tier_to_qg.values():
+            union.update(q)
+            union.update(g)
+        all_indices = sorted(union)
         all_embs, all_labels = self._extract(backbone, proj_head, all_indices)
+        idx_to_row: dict[int, int] = {idx: i for i, idx in enumerate(all_indices)}
 
-        n_query = len(self.query_indices)
-        query_embs, query_labels = all_embs[:n_query], all_labels[:n_query]
-        gallery_embs, gallery_labels = all_embs[n_query:], all_labels[n_query:]
+        log_dict: dict[str, float] = {}
+        result: dict[str, float] = {}
+        print_lines: list[str] = []
 
-        metrics = compute_cmc_map(query_embs, query_labels, gallery_embs, gallery_labels)
-        sil = self._compute_silhouette(all_embs, all_labels)
-        if sil is not None:
-            metrics["silhouette"] = sil
+        for tier in self.eval_tiers:
+            q_idxs, g_idxs = self.tier_to_qg[tier]
+            if not q_idxs or not g_idxs:
+                continue
+            q_rows = torch.tensor([idx_to_row[i] for i in q_idxs], dtype=torch.long)
+            g_rows = torch.tensor([idx_to_row[i] for i in g_idxs], dtype=torch.long)
+
+            q_embs = all_embs[q_rows]
+            q_labels = all_labels[q_rows]
+            g_embs = all_embs[g_rows]
+            g_labels = all_labels[g_rows]
+
+            metrics = compute_cmc_map(q_embs, q_labels, g_embs, g_labels)
+
+            tier_embs = torch.cat([q_embs, g_embs])
+            tier_labels = torch.cat([q_labels, g_labels])
+            sil = self._compute_silhouette(tier_embs, tier_labels)
+
+            suffix = _tier_suffix(tier)
+            log_dict[f"eval/rank1_{suffix}"] = metrics["rank1"]
+            log_dict[f"eval/rank5_{suffix}"] = metrics["rank5"]
+            log_dict[f"eval/rank10_{suffix}"] = metrics["rank10"]
+            log_dict[f"eval/mAP_{suffix}"] = metrics["mAP"]
+            log_dict[f"eval/n_identities_{suffix}"] = float(len(q_idxs))
+            if sil is not None:
+                log_dict[f"eval/silhouette_{suffix}"] = sil
+
+            result[f"rank1_{suffix}"] = metrics["rank1"]
+            result[f"rank5_{suffix}"] = metrics["rank5"]
+            result[f"rank10_{suffix}"] = metrics["rank10"]
+            result[f"mAP_{suffix}"] = metrics["mAP"]
+            result[f"n_identities_{suffix}"] = float(len(q_idxs))
+            if sil is not None:
+                result[f"silhouette_{suffix}"] = sil
+
+            sil_str = f" Sil={sil:.4f}" if sil is not None else ""
+            print_lines.append(
+                f"  [{suffix}] mAP={metrics['mAP']:.4f} R1={metrics['rank1']:.4f} "
+                f"R5={metrics['rank5']:.4f} R10={metrics['rank10']:.4f}{sil_str} "
+                f"(n_id={len(q_idxs)})"
+            )
 
         # Restore training mode
         backbone.train(was_training_bb)
         proj_head.train(was_training_ph)
 
-        # Log
-        log_dict = {
-            "eval/rank1": metrics["rank1"],
-            "eval/rank5": metrics["rank5"],
-            "eval/rank10": metrics["rank10"],
-            "eval/mAP": metrics["mAP"],
-        }
-        if "silhouette" in metrics:
-            log_dict["eval/silhouette"] = metrics["silhouette"]
         log_wandb(wandb_run, log_dict, step=iteration)
 
-        sil_str = f" Silhouette={metrics['silhouette']:.4f}" if "silhouette" in metrics else ""
-        print(f"[Eval @ iter {iteration}] Rank-1={metrics['rank1']:.4f} "
-              f"Rank-5={metrics['rank5']:.4f} mAP={metrics['mAP']:.4f}{sil_str}")
+        # Tracker compat: surface tier-100 silhouette as top-level `silhouette`.
+        if "silhouette_top100" in result:
+            result["silhouette"] = result["silhouette_top100"]
 
-        return metrics
+        print(f"[Eval @ iter {iteration}]")
+        for line in print_lines:
+            print(line)
+
+        return result if result else None

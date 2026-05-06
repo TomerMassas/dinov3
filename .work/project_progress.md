@@ -368,3 +368,84 @@ group `trial_curriculum_v1` (overlays on same plot).
 ### New rule (working guidelines)
 "When committing, stage all modified + untracked files (`git add -A`).
 Don't pick subsets and don't ask which files to include." Saved to feedback memory.
+
+## 2026-05-06 — Tiered eval shipped; noisy-eval hypothesis partially confirmed
+
+### Curriculum trial 1 attribution — vanilla-on-v2 lands between brown/pink
+Vanilla-on-v2 (blue) finished overnight: mAP 0.59 at 10K iters. Final 3-way on
+v2 val:
+- brown (v1 baseline): 0.625 — but ON v1 VAL POOL (not directly comparable)
+- blue  (vanilla v2): 0.59
+- pink  (curriculum p0.1→0.5): 0.555
+
+Noticed while tracing the eval path: brown's val pool came from the v1 index,
+blue/pink's from v2. The 0.625 vs 0.59 gap is partly val-pool drift, not just
+train-data shift. Tomer confirmed they'd already considered this — moving on.
+
+### Diagnosis: noisy eval penalizes cleaner-trained models
+Tomer raised this directly: HDBSCAN labels in the eval pool have false positives.
+A curriculum-trained model that doesn't memorize the noise gets penalized at
+eval time. Standard ReID literature finding.
+
+His initial proposal — "eval at p_end" (eval level matches train level) — got
+pushback for three reasons:
+1. mAP becomes non-comparable across runs (different eval pools per run)
+2. Smaller cleaner gallery mechanically inflates scores → can't separate "model
+   got better" from "test got easier"
+3. Production-mismatch: at deploy, the model sees full crop distribution
+
+Counter-proposal that landed: fixed-tier eval (top-50 / 75 / 100), same tiers
+applied to all runs. Plus -1 dropped from val (no centroid → can't tier).
+
+### Code shipped
+- `train_pictime/finetune/reid_evaluator.py` — rewritten. New args
+  `centroid_distances_filename`, `eval_tiers`. Per-tier Q/G built upfront,
+  single extract pass over union of tier indices, per-tier mAP/Rank/silhouette
+  logged as `eval/mAP_top50` etc. `silhouette_top100` mirrored to `silhouette`
+  for `BestCheckpointTracker` compat. Backwards-compat path: no centroid file
+  → single full-pool eval.
+- `train_pictime/finetune/reid_config.yaml` — added `eval_tiers: [0.5, 0.75, 1.0]`
+  + `eval_centroid_distances_filename: "crop_distances_v2.json"`.
+- `train_pictime/finetune/finetune_reid.py` — passes new args through.
+- `train_pictime/finetune/reeval_tiered.py` (new) — load V11 once, swap saved
+  finetune state per run, run tiered eval, print markdown row. Hardcoded RUNS
+  dict with V<n> dirs; auto-picks best-silhouette ckpt per run.
+
+### Reeval result — partial confirmation of noisy-eval penalty
+Blue (V14) and red (V15) re-evaluated on v2 val with tier filtering. Pink (V13)
+had no `ckpt_iter*_sil*.pt` files — root cause not investigated, deferred.
+
+| Tier | Blue mAP | Red mAP | Δ red−blue | Blue R1 | Red R1 | Δ |
+|------|----------|---------|------------|---------|--------|---|
+| top50  | 0.8090 | 0.8092 | **+0.0002** | 0.9214 | 0.9363 | **+0.0149** |
+| top75  | 0.7614 | 0.7498 | -0.0116 | 0.9065 | 0.9065 | 0 |
+| top100 | 0.6914 | 0.6827 | -0.0087 | 0.8957 | 0.8848 | -0.0109 |
+
+Silhouette: top50 — red 0.366 vs blue 0.364 (red slightly higher); top100 —
+red 0.246 vs blue 0.252 (blue higher). Gap reverses across tiers.
+
+**Translation**: soft curriculum (red, p=0.5→1.0) is at parity-to-marginally-better
+than vanilla on clean labels (top-50), slight loss on noisy labels (top-100).
+The 0.575 vs 0.59 W&B gap was real but partly an artifact of eval-noise penalty.
+Curriculum is not the disaster the W&B charts suggested.
+
+Also notable: dropping -1 from val + cleaning to top-50 closes a **12-point
+mAP gap** (0.69 → 0.81 for blue). The eval bias was huge.
+
+### Follow-up run launched
+After seeing the tier results, Tomer changed the config with three combined
+knobs:
+- `unfreeze_after`: 2000 → 1000 (earlier unfreeze)
+- `unfreeze_n_blocks`: 4 → 6 (50% of ViT-S)
+- `curriculum.p_end`: 1.0 → 0.8 (perma-filter bottom 20%, never fully release)
+
+Flagged the entanglement (3 knobs, can't isolate cause if it wins/loses) and
+the stale `experiment_tag: "vanilla_v11ckpt13k_v2index"`. Tomer renamed the
+tag and launched.
+
+### Deferred / open
+- Pink V13 missing ckpts — root cause unknown
+- Whether to switch `BestCheckpointTracker` from full-tier to top-50
+  silhouette (cleaner signal). Wait until more tier data lands.
+- New run is running on VM; results will tell us if more capacity + perma-
+  filtered curriculum beats vanilla on tier-50.

@@ -340,8 +340,9 @@ def main():
         pin_memory=True,
     )
 
-    # Eval — note: val_mask uses the ORIGINAL train_mask vs val_mask split, not the
-    # curriculum-filtered train_mask, so val never loses cluster_id=-1 samples.
+    # Eval — val_mask uses the ORIGINAL split (curriculum filter is train-only).
+    # Tiered eval: when eval_centroid_distances_filename is set, the evaluator
+    # drops cluster_id=-1 (no centroid) and computes per-tier metrics.
     evaluator = ReIDEvaluator(
         image_paths=image_paths[val_mask],
         bboxes=bboxes[val_mask],
@@ -351,6 +352,8 @@ def main():
         seed=cfg.seed,
         min_k=cfg.K,
         silhouette_max_samples=cfg.silhouette_max_samples,
+        centroid_distances_filename=cfg.get("eval_centroid_distances_filename", None),
+        eval_tiers=cfg.get("eval_tiers", None),
     )
 
     # Loss
