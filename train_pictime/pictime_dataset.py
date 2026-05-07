@@ -12,13 +12,12 @@ class PicTimeImageDataset(Dataset):
     Returns (image, 0). Label is unused for SSL.
     """
 
-    def __init__(
-        self,
-        file_images_paths: str = None, # passed from "PicTime:extra=..."
-        transform: Optional[Any] = None,
-        target_transform: Optional[Any] = None,
-        transforms: Optional[Any] = None,
-    ):
+    def __init__(self,
+                 file_images_paths: str = None,  # passed from "PicTime:extra=..."
+                 transform: Optional[Any] = None,
+                 target_transform: Optional[Any] = None,
+                 transforms: Optional[Any] = None,
+                ):
         if file_images_paths is None:
             raise ValueError("Expected dataset_path like PicTime:extra=/path/to/paths.txt")
 

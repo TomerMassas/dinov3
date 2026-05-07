@@ -393,13 +393,12 @@ def main():
         if ckpt_period > 0 and it > 0 and it % ckpt_period == 0:
             ckpt_dir = Path(args.output_dir) / "ckpt"
             torch.cuda.synchronize()
-            save_checkpoint(
-                ckpt_dir / str(it),
-                iteration=it,
-                model=model,
-                optimizer=optimizer,
-                overwrite=True,
-            )
+            save_checkpoint(ckpt_dir / str(it),
+                            iteration=it,
+                            model=model,
+                            optimizer=optimizer,
+                            overwrite=True,
+                           )
             keep_last_n_checkpoints(ckpt_dir, cfg.checkpointing.max_to_keep)
 
     pbar.close()

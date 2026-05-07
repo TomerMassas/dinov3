@@ -449,3 +449,75 @@ tag and launched.
   silhouette (cleaner signal). Wait until more tier data lands.
 - New run is running on VM; results will tell us if more capacity + perma-
   filtered curriculum beats vanilla on tier-50.
+
+## 2026-05-07 — Cluster-id=-1 unification, code-style sweep, Trial 1 launched
+
+### `cluster_id == -1` filter unified across train + eval
+- Resolved the 10k vs 8k iter mystery between vanilla and curriculum runs:
+  vanilla kept -1 in train (~+20% more identities → more iters/epoch),
+  curriculum dropped them → fewer iters. Now -1 filtered globally right
+  after `load_index()` in both `finetune_reid.py` and `reeval_tiered.py`.
+- Removed redundant conditional filters in `finetune_reid.py` (curriculum-
+  only block) and `reid_evaluator.py` (tiered-only block).
+- Doc cleanup: `reid_config.yaml`, `README.md`.
+- Eval is functionally unchanged on the current tiered config (tiered eval
+  was already dropping -1). Train side is the visible change; vanilla and
+  curriculum runs from now on share the same train pool.
+
+### Code-style rule saved + repo-wide sweep
+- Saved `.work/feedback_function_signatures.md` (multi-line `def` AND
+  function calls: first arg on `(` line, args column-aligned, closing `)`
+  aligned with opening `(`). Project line length is 120 (from
+  `pyproject.toml`).
+- **24 def-signature edits** across 10 files (TOO_LONG wraps,
+  VERTICAL→horizontal rewraps, OVER_WRAPPED collapses, MIXED rewraps).
+- **30 function-call edits** across 12 files (12 TOO_LONG wraps, 12
+  VERTICAL→horizontal rewraps, 6 MIXED — 3 collapsed, 3 strict-wrapped).
+- Skipped: Pattern A (list-as-single-arg, e.g. `transforms.Compose([...])`),
+  Pattern B (dict/list-of-dicts as arg, e.g. `torch.optim.AdamW([{...}])`,
+  `torch.save({...}, path)`), Pattern C (nested-lambda calls, e.g.
+  `model._apply(lambda t: torch.full_like(...))` × 4 files), and 12
+  unscanned files. Survey-first / edits-second worked well.
+
+### Trial brainstorm — full list ranked, methodology locked
+Discussed all 7 ideas from `my_prompt`. Methodological constraints locked:
+- **One knob at a time** (V15 entangled run was the lesson).
+- **Curriculum off** unless the trial is specifically about curriculum.
+- **Tier-50 is primary metric**.
+- **V11/ckpt/13000 fixed** as backbone (until #4 ViT-B exploration).
+
+Recommended order: (1) head-vs-no-head eval [no training cost],
+(2) n_blocks sweep, (3) τ sweep, (4) K sweep, (5) P sweep + whole dataset,
+(6) ArcFace solo on V11, (7) ViT-B cheap path.
+
+### Trial 1 — n_blocks sweep launched
+- Sweep `n_blocks ∈ {0, 2, 4, 6, 8, 12}` with everything else held fixed
+  (V11/ckpt/13000 teacher, SupCon τ=0.07, head lr=1e-3, lr_backbone=1e-4,
+  unfreeze_after=2000 except n_blocks=0 → Mode A, P=16, K=4, 10 epochs,
+  curriculum off). W&B group `trial_n_blocks`.
+- **Refactor**: split `finetune_reid.py:main()` into `run_finetune(cfg)`
+  + thin `main()`. Direct `python3 finetune_reid.py` still works (function
+  renamed to avoid shadowing the local W&B `run` variable).
+- **New trial folder** `train_pictime/finetune/trials/` with `__init__.py`
+  + `trial_01_nblocks.py` — single-process sequential sweep, deep-copies
+  base cfg, per-iter overrides, try/except per iter, `cuda.empty_cache()`
+  between. Tomer started the script.
+- Follow-up `trial_01b_lr_backbone.py` to be created after this finishes
+  (needs `n_blocks*`).
+
+### experiment.md
+First wrote a comprehensive version with run-history table + lessons +
+backlog → Tomer pushed back ("too much info"). Stripped to Trial 1 setup +
+lr_backbone follow-up + Results placeholder. Lesson: keep this file scoped
+to active trials, not a historical archive (progress.md is the archive).
+
+### Other
+- Stale 2026-05-05 handoff resolved on resumption (was already addressed
+  by 2026-05-06 work).
+
+### Open
+- Trial 1 (6 runs × ~1.5h ≈ 9h) running on VM. Awaiting tier-50 mAP curve
+  across n_blocks values to identify `n_blocks*`.
+- Decide `BestCheckpointTracker` metric (full-tier silhouette vs tier-50
+  silhouette) once more tier data lands.
+- Pink V13 missing ckpts root cause (deferred from 2026-05-06).

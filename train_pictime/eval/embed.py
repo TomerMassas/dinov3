@@ -21,13 +21,12 @@ def get_backbone(model_arch, which: Literal["teacher", "student"]):
 
 
 @torch.no_grad()
-def extract_embeddings(
-    model,
-    paths: List[str,],
-    which: Literal["teacher", "student"] = "teacher",
-    batch_size: int = 64,
-    device: str = "cuda",
-) -> torch.Tensor:
+def extract_embeddings(model,
+                       paths: List[str,],
+                       which: Literal["teacher", "student"] = "teacher",
+                       batch_size: int = 64,
+                       device: str = "cuda",
+                      ) -> torch.Tensor:
     """
     Returns: E [N, D] float32 on CPU, L2-normalized.
     """
@@ -35,8 +34,7 @@ def extract_embeddings(
         transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
-        transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                             std=(0.229, 0.224, 0.225)),
+        transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ])
 
     backbone = get_backbone(model, which=which)

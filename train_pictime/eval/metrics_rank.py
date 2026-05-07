@@ -5,10 +5,7 @@ import torch
 import torch.nn.functional as F
 
 
-def embedding_variance_and_effective_rank(
-    E: torch.Tensor,
-    center_and_renorm: bool = False,
-) -> Dict[str, float]:
+def embedding_variance_and_effective_rank(E: torch.Tensor, center_and_renorm: bool = False) -> Dict[str, float]:
     """
     E: [N, D] embeddings (often already L2-normalized). CPU preferred.
     If center_and_renorm=True, applies: E <- normalize(E - mean(E)).

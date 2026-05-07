@@ -74,7 +74,11 @@ class Evaluator:
         do_geom  = self._due("geom_pack", it)
         any_do = do_views or do_rank or do_proto or do_geom
         if self.cascade and any_do:
-            max_pack_size = max(int(self.sizes.geom), int(self.sizes.rank), int(self.sizes.proto), int(self.sizes.views))
+            max_pack_size = max(int(self.sizes.geom),
+                                int(self.sizes.rank),
+                                int(self.sizes.proto),
+                                int(self.sizes.views),
+                               )
             do_views = do_views or (int(self.sizes.views) <= max_pack_size)
             do_rank  = do_rank  or (int(self.sizes.rank)  <= max_pack_size)
             do_proto = do_proto or (int(self.sizes.proto) <= max_pack_size)
@@ -106,8 +110,18 @@ class Evaluator:
         # EMBEDDINGS
         need_embed = self._embed_need(plan)
         # compute once at max required size; smaller metrics use prefixes
-        E_t = extract_embeddings(model, self.uval_paths[:need_embed], which="teacher", batch_size=self.bs, device=self.device)
-        E_s = extract_embeddings(model, self.uval_paths[:need_embed], which="student", batch_size=self.bs, device=self.device)
+        E_t = extract_embeddings(model,
+                                 self.uval_paths[:need_embed],
+                                 which="teacher",
+                                 batch_size=self.bs,
+                                 device=self.device,
+                                )
+        E_s = extract_embeddings(model,
+                                 self.uval_paths[:need_embed],
+                                 which="student",
+                                 batch_size=self.bs,
+                                 device=self.device,
+                                )
 
         # PROTO
         if plan["proto"]:
@@ -129,12 +143,20 @@ class Evaluator:
                 rank_t_ctr = embedding_variance_and_effective_rank(Et, center_and_renorm=True)
                 rank_s_ctr = embedding_variance_and_effective_rank(Es, center_and_renorm=True)
 
-                log_paired_variant(self.run, step=it, prefix=f"{prefix}rank/",
+                log_paired_variant(self.run,
+                                   step=it,
+                                   prefix=f"{prefix}rank/",
                                    teacher_variants={"raw": rank_t_raw, "ctr": rank_t_ctr},
-                                   student_variants={"raw": rank_s_raw, "ctr": rank_s_ctr})
+                                   student_variants={"raw": rank_s_raw, "ctr": rank_s_ctr},
+                                  )
 
             else:
-                log_paired(self.run, step=it, prefix=f"{prefix}rank/", teacher_dict=rank_t_raw, student_dict=rank_s_raw)
+                log_paired(self.run,
+                           step=it,
+                           prefix=f"{prefix}rank/",
+                           teacher_dict=rank_t_raw,
+                           student_dict=rank_s_raw,
+                          )
 
         # GEOM
         if plan["geom"]:
@@ -142,19 +164,47 @@ class Evaluator:
             Es = E_s[:self.sizes.geom]
 
             ks = tuple(int(x) for x in self.geom_cfg.get("ks", [1, 5, 10]))
-            geom_t_raw = geometry_pack(Et, num_pairs=self.geom_cfg.num_pairs, ks=ks, device=self.device, center_and_renorm=False)
-            geom_s_raw = geometry_pack(Es, num_pairs=self.geom_cfg.num_pairs, ks=ks, device=self.device, center_and_renorm=False)
+            geom_t_raw = geometry_pack(Et,
+                                       num_pairs=self.geom_cfg.num_pairs,
+                                       ks=ks,
+                                       device=self.device,
+                                       center_and_renorm=False,
+                                      )
+            geom_s_raw = geometry_pack(Es,
+                                       num_pairs=self.geom_cfg.num_pairs,
+                                       ks=ks,
+                                       device=self.device,
+                                       center_and_renorm=False,
+                                      )
 
             if bool(self.geom_cfg.get("centered", True)):
-                geom_t_ctr = geometry_pack(Et, num_pairs=self.geom_cfg.num_pairs, ks=ks, device=self.device, center_and_renorm=True)
-                geom_s_ctr = geometry_pack(Es, num_pairs=self.geom_cfg.num_pairs, ks=ks, device=self.device, center_and_renorm=True)
+                geom_t_ctr = geometry_pack(Et,
+                                           num_pairs=self.geom_cfg.num_pairs,
+                                           ks=ks,
+                                           device=self.device,
+                                           center_and_renorm=True,
+                                          )
+                geom_s_ctr = geometry_pack(Es,
+                                           num_pairs=self.geom_cfg.num_pairs,
+                                           ks=ks,
+                                           device=self.device,
+                                           center_and_renorm=True,
+                                          )
 
-                log_paired_variant(self.run, step=it, prefix=f"{prefix}geom/",
+                log_paired_variant(self.run,
+                                   step=it,
+                                   prefix=f"{prefix}geom/",
                                    teacher_variants={"raw": geom_t_raw, "ctr": geom_t_ctr},
-                                   student_variants={"raw": geom_s_raw, "ctr": geom_s_ctr})
+                                   student_variants={"raw": geom_s_raw, "ctr": geom_s_ctr},
+                                  )
 
             else:
-                log_paired(self.run, step=it, prefix=f"{prefix}geom/", teacher_dict=geom_t_raw, student_dict=geom_s_raw)
+                log_paired(self.run,
+                           step=it,
+                           prefix=f"{prefix}geom/",
+                           teacher_dict=geom_t_raw,
+                           student_dict=geom_s_raw,
+                          )
 
         # VIEWS (separate forward passes; doesn’t reuse E_t/E_s because it uses 2 views (crop of the original img))
         if plan["views"]:

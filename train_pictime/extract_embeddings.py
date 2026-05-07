@@ -38,8 +38,7 @@ def get_eval_transform():
         transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
-        transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                             std=(0.229, 0.224, 0.225)),
+        transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ])
 
 
@@ -65,10 +64,13 @@ def debug_visualize(img_rgb, boxes_normalized):
     axes[0].axis('off')
     for box in boxes_normalized:
         x1, y1, x2, y2 = box
-        rect = patches.Rectangle(
-            (x1 * w, y1 * h), (x2 - x1) * w, (y2 - y1) * h,
-            linewidth=2, edgecolor='lime', facecolor='none'
-        )
+        rect = patches.Rectangle((x1 * w, y1 * h),
+                                 (x2 - x1) * w,
+                                 (y2 - y1) * h,
+                                 linewidth=2,
+                                 edgecolor='lime',
+                                 facecolor='none',
+                                )
         axes[0].add_patch(rect)
 
     # Each crop
@@ -157,10 +159,7 @@ def save_project(project_dir, filenames, bbox_indices, embeddings):
     emb_array = np.concatenate(embeddings, axis=0)
     embeddings_path = os.path.join(project_dir, EMBEDDINGS_FILENAME)
     tmp_path = embeddings_path + ".tmp.npz"
-    np.savez(tmp_path,
-             filenames=np.array(filenames),
-             bbox_indices=np.array(bbox_indices),
-             embeddings=emb_array)
+    np.savez(tmp_path, filenames=np.array(filenames), bbox_indices=np.array(bbox_indices), embeddings=emb_array)
     os.replace(tmp_path, embeddings_path)
 
 
@@ -242,14 +241,13 @@ if __name__ == "__main__":
 
     # --- Phase 2: DataLoader + batched GPU inference ---
     crop_dataset = CropDataset(entries, tfm)
-    loader = DataLoader(
-        crop_dataset,
-        batch_size=MAX_BATCH_SIZE,
-        shuffle=False,
-        num_workers=NUM_WORKERS,
-        pin_memory=True,
-        prefetch_factor=2,
-    )
+    loader = DataLoader(crop_dataset,
+                        batch_size=MAX_BATCH_SIZE,
+                        shuffle=False,
+                        num_workers=NUM_WORKERS,
+                        pin_memory=True,
+                        prefetch_factor=2,
+                       )
 
     # Build sorted list of (project_dir, start, end) for flushing
     project_order = sorted(project_ranges.items(), key=lambda x: x[1][0])

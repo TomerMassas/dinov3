@@ -30,13 +30,12 @@ def _two_view_transforms(img_size: int = 224):
 
 
 @torch.no_grad()
-def extract_two_view_embeddings(
-    model,
-    paths: List[str],
-    which: Literal["teacher", "student"],
-    batch_size: int = 64,
-    device: str = "cuda",
-) -> Tuple[torch.Tensor, torch.Tensor]:
+def extract_two_view_embeddings(model,
+                                paths: List[str],
+                                which: Literal["teacher", "student"],
+                                batch_size: int = 64,
+                                device: str = "cuda",
+                               ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Returns: (E_a, E_b) both [N, D] float32 on CPU, L2-normalized.
     """
@@ -52,8 +51,10 @@ def extract_two_view_embeddings(
         for i in range(0, len(paths), batch_size):
             batch_paths = paths[i:i + batch_size]
 
-            imgs_a = torch.stack([tfm_a(Image.open(p).convert("RGB")) for p in batch_paths]).to(device, non_blocking=True)
-            imgs_b = torch.stack([tfm_b(Image.open(p).convert("RGB")) for p in batch_paths]).to(device, non_blocking=True)
+            imgs_a = (torch.stack([tfm_a(Image.open(p).convert("RGB")) for p in batch_paths])
+                      .to(device, non_blocking=True))
+            imgs_b = (torch.stack([tfm_b(Image.open(p).convert("RGB")) for p in batch_paths])
+                      .to(device, non_blocking=True))
 
             out_a = backbone(imgs_a)
             out_b = backbone(imgs_b)
@@ -198,13 +199,12 @@ def anisotropy_stats(E: torch.Tensor) -> Dict[str, float]:
     }
 
 
-def evaluate_views_pack(
-        model,
-        paths: List[str],
-        which: Literal["teacher", "student"],
-        batch_size: int = 64,
-        device: str = "cuda",
-    ) -> Dict[str, float]:
+def evaluate_views_pack(model,
+                        paths: List[str],
+                        which: Literal["teacher", "student"],
+                        batch_size: int = 64,
+                        device: str = "cuda",
+                       ) -> Dict[str, float]:
 
     Ea, Eb = extract_two_view_embeddings(model,
                                          paths=paths,

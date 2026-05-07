@@ -6,6 +6,7 @@
 ## Feedback
 - [feedback_working_guidelines.md](feedback_working_guidelines.md) — How to collaborate: no unsolicited changes, explain before acting, stay concise
 - [feedback_fix_sister_scripts.md](feedback_fix_sister_scripts.md) — When fixing a bug, patch all sibling scripts (incl. legacy) to prevent silent footguns on revisits
+- [feedback_function_signatures.md](feedback_function_signatures.md) — Multi-line `def` AND function calls: first arg on `(` line, args column-aligned, closing `)` aligned with opening `(`
 
 ## Project
 - [project_context.md](project_context.md) — DINOv3 ViT pretraining for person ReID on Pictime data

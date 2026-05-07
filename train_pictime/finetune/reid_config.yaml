@@ -1,6 +1,6 @@
 # --- W&B ---
 wandb_project: "person-reid-finetune"
-experiment_tag: "curriculum_p0.5to0.8_frac0.7_v11ckpt13k_v2index"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
+experiment_tag: "vanilla_v11ckpt13k_v2index"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
 experiment_group: "trial_curriculum_v1"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
 
 # --- Paths ---
@@ -51,9 +51,9 @@ seed: 42
 val_ratio: 0.05
 silhouette_max_samples: 10000   # cap for stratified silhouette subsample (0 = skip)
 # Tiered eval: per-identity restrict val pool to top-T fraction closest to centroid.
-# Each tier produces its own mAP/Rank/silhouette (e.g. eval/mAP_top50). cluster_id=-1
-# identities are dropped from val (no centroid). Set eval_centroid_distances_filename
-# to null to disable tiering and fall back to single full-pool eval (legacy behavior).
+# Each tier produces its own mAP/Rank/silhouette (e.g. eval/mAP_top50). Set
+# eval_centroid_distances_filename to null to disable tiering and fall back to
+# single full-pool eval (legacy behavior).
 eval_tiers: [0.5, 0.75, 1.0]
 eval_centroid_distances_filename: "crop_distances_v2.json"
 
@@ -67,9 +67,9 @@ ckpt_max_keep: 3             # keep best 3 by eval metric (mAP), not most recent
 # linearly from p_start to p_end over the first end_frac * total_iters
 # iterations, then stays at p_end. Set p_start=p_end (e.g. both 0.5) for the
 # fixed-fraction ablation control. Set p_start=p_end=1.0 (or enabled=false)
-# for vanilla sampling. -1-cluster train samples are filtered when enabled.
+# for vanilla sampling.
 curriculum:
-  enabled: true
+  enabled: false
   p_start: 0.5
   p_end: 0.8
   end_frac: 0.7

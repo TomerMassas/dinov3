@@ -18,14 +18,13 @@ def get_head(model, which: Literal["teacher", "student"]):
 
 
 @torch.no_grad()
-def prototype_utilization(
-    model,
-    E: torch.Tensor,
-    which: Literal["teacher", "student"] = "teacher",
-    batch_size: int = 64,
-    device: str = "cuda",
-    teacher_temp: float = 0.07,   # only used for optional confidence metric
-) -> Dict[str, float]:
+def prototype_utilization(model,
+                          E: torch.Tensor,
+                          which: Literal["teacher", "student"] = "teacher",
+                          batch_size: int = 64,
+                          device: str = "cuda",
+                          teacher_temp: float = 0.07,  # only used for optional confidence metric
+                         ) -> Dict[str, float]:
     """
     Computes prototype usage histogram + entropy/perplexity stats.
     Uses argmax over prototypes as "assignment".

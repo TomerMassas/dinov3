@@ -71,6 +71,17 @@ def main():
     print("Loading index...")
     index_path = Path(cfg.data_base_path) / cfg.get("reid_index_filename", "reid_index.npz")
     image_paths, bboxes, bbox_indices, project_ids, cluster_ids = load_index(index_path)
+
+    # Drop cluster_id == -1 globally — symmetric to finetune_reid.py.
+    keep = cluster_ids != -1
+    n_dropped = int((~keep).sum())
+    image_paths   = image_paths[keep]
+    bboxes        = bboxes[keep]
+    bbox_indices  = bbox_indices[keep]
+    project_ids   = project_ids[keep]
+    cluster_ids   = cluster_ids[keep]
+    print(f"Filtered {n_dropped} cluster_id=-1 samples globally; {len(image_paths)} samples remain")
+
     unique_projects = sorted(set(project_ids))
     _, val_project_ids = train_val_split(unique_projects, cfg.val_ratio, cfg.seed)
     val_mask = np.isin(project_ids, val_project_ids)

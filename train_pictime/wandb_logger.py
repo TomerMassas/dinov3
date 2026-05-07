@@ -7,7 +7,10 @@ import wandb
 
 
 
-def find_wandb_run_id_by_name(run_name: str, project: Optional[str] = None, entity: Optional[str] = None) -> Optional[str]:
+def find_wandb_run_id_by_name(run_name: str,
+                              project: Optional[str] = None,
+                              entity: Optional[str] = None,
+                             ) -> Optional[str]:
     """Query W&B API for a run with the given name. Returns the latest run's ID, or None."""
     api = wandb.Api()
     project = project or os.environ.get("WANDB_PROJECT", "person-reid-dinov3")
@@ -23,7 +26,13 @@ def find_wandb_run_id_by_name(run_name: str, project: Optional[str] = None, enti
     return None
 
 
-def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None, resume_id: Optional[str] = None, project: Optional[str] = None, group: Optional[str] = None) -> Any:
+def init_wandb(cfg,
+               output_dir: str,
+               run_name: Optional[str] = None,
+               resume_id: Optional[str] = None,
+               project: Optional[str] = None,
+               group: Optional[str] = None,
+              ) -> Any:
     if wandb is None:
         return None
 
@@ -36,15 +45,14 @@ def init_wandb(cfg, output_dir: str, run_name: Optional[str] = None, resume_id: 
     if resume_id is not None:
         resume_kwargs = {"id": resume_id, "resume": "must"}
 
-    run = wandb.init(
-        project=project,
-        entity=entity,
-        name=run_name,
-        group=group,
-        dir=output_dir,
-        config=OmegaConf.to_container(cfg, resolve=True),
-        **resume_kwargs,
-    )
+    run = wandb.init(project=project,
+                     entity=entity,
+                     name=run_name,
+                     group=group,
+                     dir=output_dir,
+                     config=OmegaConf.to_container(cfg, resolve=True),
+                     **resume_kwargs,
+                    )
     wandb.define_metric("train/iter")
     wandb.define_metric("*", step_metric="train/iter")
     return run
@@ -94,12 +102,11 @@ def log_prefixed(run: Any, step: int, items: Iterable[Tuple[str, Dict[str, Any]]
     run.log(merged)
 
 
-def log_prefixed_variant(
-    run: Any,
-    step: int,
-    prefix: str,
-    variant_to_dict: Dict[str, Dict[str, Any]],
-) -> None:
+def log_prefixed_variant(run: Any,
+                         step: int,
+                         prefix: str,
+                         variant_to_dict: Dict[str, Dict[str, Any]],
+                        ) -> None:
     """
     Logs metrics so that variants (raw/ctr) share the same base name and differ by suffix.
     Example key: f"{prefix}{metric_name}/{variant}"
@@ -119,13 +126,12 @@ def log_prefixed_variant(
 _paired_history: Dict[str, Dict[str, list]] = {}
 
 
-def log_paired(
-    run: Any,
-    step: int,
-    prefix: str,
-    teacher_dict: Dict[str, Any],
-    student_dict: Dict[str, Any],
-) -> None:
+def log_paired(run: Any,
+               step: int,
+               prefix: str,
+               teacher_dict: Dict[str, Any],
+               student_dict: Dict[str, Any],
+              ) -> None:
     """
     Log teacher & student metrics on the SAME W&B chart via line_series.
     Accumulates history in _paired_history and re-logs the full chart each call.
@@ -145,25 +151,23 @@ def log_paired(
         hist["steps"].append(step)
         hist["teacher"].append(fv_t)
         hist["student"].append(fv_s)
-        payload[chart_key] = wandb.plot.line_series(
-            xs=hist["steps"],
-            ys=[hist["teacher"], hist["student"]],
-            keys=["teacher", "student"],
-            title=chart_key,
-            xname="train/iter",
-        )
+        payload[chart_key] = wandb.plot.line_series(xs=hist["steps"],
+                                                    ys=[hist["teacher"], hist["student"]],
+                                                    keys=["teacher", "student"],
+                                                    title=chart_key,
+                                                    xname="train/iter",
+                                                   )
     if payload:
         payload["train/iter"] = step
         run.log(payload)
 
 
-def log_paired_variant(
-    run: Any,
-    step: int,
-    prefix: str,
-    teacher_variants: Dict[str, Dict[str, Any]],
-    student_variants: Dict[str, Dict[str, Any]],
-) -> None:
+def log_paired_variant(run: Any,
+                       step: int,
+                       prefix: str,
+                       teacher_variants: Dict[str, Dict[str, Any]],
+                       student_variants: Dict[str, Dict[str, Any]],
+                      ) -> None:
     """
     Like log_paired but with raw/ctr sub-variants.
     One chart per metric, with a line per (variant, model) combo.
@@ -190,13 +194,12 @@ def log_paired_variant(
         for v in variant_names:
             hist[f"teacher/{v}"].append(_as_float(teacher_variants.get(v, {}).get(k)))
             hist[f"student/{v}"].append(_as_float(student_variants.get(v, {}).get(k)))
-        payload[chart_key] = wandb.plot.line_series(
-            xs=hist["steps"],
-            ys=[hist[sk] for sk in series_keys],
-            keys=series_keys,
-            title=chart_key,
-            xname="train/iter",
-        )
+        payload[chart_key] = wandb.plot.line_series(xs=hist["steps"],
+                                                    ys=[hist[sk] for sk in series_keys],
+                                                    keys=series_keys,
+                                                    title=chart_key,
+                                                    xname="train/iter",
+                                                   )
     if payload:
         payload["train/iter"] = step
         run.log(payload)

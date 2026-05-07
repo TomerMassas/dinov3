@@ -97,10 +97,9 @@ def load_backbone(pretrain_cfg_path: str, ckpt_path: str, which: str = "teacher"
 
     # Extract full (unsharded) state dict from the wrapped backbone
     wrapped_backbone = (model.teacher if which == "teacher" else model.student)["backbone"]
-    full_sd = get_model_state_dict(
-        wrapped_backbone,
-        options=StateDictOptions(full_state_dict=True, cpu_offload=False),
-    )
+    full_sd = get_model_state_dict(wrapped_backbone,
+                                   options=StateDictOptions(full_state_dict=True, cpu_offload=False),
+                                  )
 
     # Defensive: strip wrapper prefixes that can leak through (AC / torch.compile)
     prefix_strip = ["_orig_mod.", "_checkpoint_wrapped_module."]
@@ -124,9 +123,7 @@ def load_backbone(pretrain_cfg_path: str, ckpt_path: str, which: str = "teacher"
     # silently finetune with the wrong dtype
     param_dtypes = {p.dtype for p in fresh_backbone.parameters()}
     if param_dtypes != {torch.float32}:
-        raise RuntimeError(
-            f"Expected all backbone params to be float32, got dtypes: {param_dtypes}"
-        )
+        raise RuntimeError(f"Expected all backbone params to be float32, got dtypes: {param_dtypes}")
 
     import shutil
     shutil.rmtree(dummy_dir, ignore_errors=True)
@@ -234,12 +231,12 @@ class BestCheckpointTracker:
 # Main
 # ---------------------------------------------------------------------------
 
-def main():
-    cfg = OmegaConf.load(CFG_PATH)
+def run_finetune(cfg):
+    """Run one finetune training using a fully-resolved OmegaConf cfg.
 
-    # Initialize distributed (single-process) — needed for DCP checkpoint loading
-    setup_job(output_dir=None, seed=cfg.seed)
-
+    Caller must have already called `setup_job()` exactly once for the
+    process — distributed init is per-process, not per-run.
+    """
     # Resolve paths relative to repo root
     pretrain_cfg_path = str(REPO_ROOT / cfg.pretrain_config)
 
@@ -281,6 +278,18 @@ def main():
     # tmp_trip = 10000
     # image_paths, bboxes, bbox_indices, project_ids, cluster_ids = image_paths[:tmp_trip], bboxes[:tmp_trip], bbox_indices[:tmp_trip], project_ids[:tmp_trip], cluster_ids[:tmp_trip]
     ##############################################################################################################################
+
+    # Drop cluster_id == -1 globally — HDBSCAN noise (or reviewer-flagged ambiguous);
+    # too dirty to train or evaluate on. Keeps vanilla and curriculum on the same
+    # identity pool so iter counts and metrics are comparable.
+    keep = cluster_ids != -1
+    n_dropped = int((~keep).sum())
+    image_paths   = image_paths[keep]
+    bboxes        = bboxes[keep]
+    bbox_indices  = bbox_indices[keep]
+    project_ids   = project_ids[keep]
+    cluster_ids   = cluster_ids[keep]
+    print(f"Filtered {n_dropped} cluster_id=-1 samples globally; {len(image_paths)} samples remain")
     print(f"Total samples: {len(image_paths)}")
 
     # Split by project
@@ -294,16 +303,6 @@ def main():
     # Curriculum config
     curriculum_cfg = cfg.get("curriculum", None)
     curriculum_enabled = bool(curriculum_cfg and curriculum_cfg.get("enabled", False))
-
-    # Curriculum requires a centroid for every train identity, but cluster_id=-1
-    # is excluded from build_centroids (no meaningful centroid for noise). Reviewer-
-    # fixed -1 entries are valid in vanilla SupCon but would crash curriculum init,
-    # so drop them from the train mask only when curriculum is on.
-    if curriculum_enabled:
-        n_minus_one = int((cluster_ids[train_mask] == -1).sum())
-        train_mask = train_mask & (cluster_ids != -1)
-        print(f"Curriculum enabled: filtered {n_minus_one} cluster_id=-1 train samples; "
-              f"{int(train_mask.sum())} train samples remain")
 
     centroid_distances_filename = (curriculum_cfg.centroid_distances_filename if curriculum_enabled else None)
 
@@ -528,6 +527,12 @@ def main():
 
     if run is not None:
         run.finish()
+
+
+def main():
+    cfg = OmegaConf.load(CFG_PATH)
+    setup_job(output_dir=None, seed=cfg.seed)
+    run_finetune(cfg)
 
 
 if __name__ == "__main__":

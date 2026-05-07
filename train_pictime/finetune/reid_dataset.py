@@ -120,18 +120,17 @@ def build_global_identity_map(project_ids, cluster_ids):
 class ReIDCropDataset(Dataset):
     """Dataset that returns cropped person bboxes with global identity labels."""
 
-    def __init__(
-        self,
-        image_paths,
-        bboxes,
-        bbox_indices,
-        project_ids,
-        cluster_ids,
-        labels,
-        transform=None,
-        min_k: int = 1,
-        centroid_distances_filename: str | None = None,
-    ):
+    def __init__(self,
+                 image_paths,
+                 bboxes,
+                 bbox_indices,
+                 project_ids,
+                 cluster_ids,
+                 labels,
+                 transform=None,
+                 min_k: int = 1,
+                 centroid_distances_filename: str | None = None,
+                ):
         """
         Args:
             image_paths:  np.ndarray of str [N]
@@ -180,10 +179,13 @@ class ReIDCropDataset(Dataset):
             )
 
     @staticmethod
-    def _build_sorted_indices(
-        image_paths, bbox_indices, project_ids, cluster_ids, labels,
-        centroid_distances_filename,
-    ) -> dict[int, list[int]]:
+    def _build_sorted_indices(image_paths,
+                              bbox_indices,
+                              project_ids,
+                              cluster_ids,
+                              labels,
+                              centroid_distances_filename,
+                             ) -> dict[int, list[int]]:
         """For each global identity, return its dataset indices sorted by ascending
         cosine distance to the cluster centroid (read from per-project distances file).
 
@@ -275,17 +277,16 @@ class PKBatchSampler(Sampler):
     always large enough to sample K crops.
     """
 
-    def __init__(
-        self,
-        dataset: ReIDCropDataset,
-        P: int,
-        K: int,
-        num_batches: int,
-        seed: int = 42,
-        curriculum_p_start: float = 1.0,
-        curriculum_p_end: float = 1.0,
-        curriculum_end_frac: float = 0.3,
-    ):
+    def __init__(self,
+                 dataset: ReIDCropDataset,
+                 P: int,
+                 K: int,
+                 num_batches: int,
+                 seed: int = 42,
+                 curriculum_p_start: float = 1.0,
+                 curriculum_p_end: float = 1.0,
+                 curriculum_end_frac: float = 0.3,
+                ):
         self.dataset = dataset
         self.P = P
         self.K = K
@@ -340,9 +341,7 @@ class PKBatchSampler(Sampler):
 # Train / Val split
 # ---------------------------------------------------------------------------
 
-def train_val_split(
-    items: list, val_ratio: float, seed: int
-) -> tuple[list, list]:
+def train_val_split(items: list, val_ratio: float, seed: int) -> tuple[list, list]:
     """Deterministic split into train and val."""
     rng = random.Random(seed)
     items = list(items)

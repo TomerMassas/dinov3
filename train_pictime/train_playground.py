@@ -254,13 +254,12 @@ def main():
 
         # Print a compact line
         md = {k: float(v.item()) for k, v in metrics_dict.items()}
-        print(
-            f"[it {it:03d}] loss={float(total_loss.item()):.4f} "
-            f"lr={lr:.3e} wd={wd:.3e} mom={mom:.4f} "
-            f"ibot={md.get('ibot_loss', float('nan')):.4f} "
-            f"dino_global={md.get('dino_global_crops_loss', float('nan')):.4f} "
-            f"koleo={md.get('koleo_loss', float('nan')):.4f}"
-        )
+        print(f"[it {it:03d}] loss={float(total_loss.item()):.4f} "
+              f"lr={lr:.3e} wd={wd:.3e} mom={mom:.4f} "
+              f"ibot={md.get('ibot_loss', float('nan')):.4f} "
+              f"dino_global={md.get('dino_global_crops_loss', float('nan')):.4f} "
+              f"koleo={md.get('koleo_loss', float('nan')):.4f}",
+             )
 
     print("10-iter wrapper smoke OK")
 

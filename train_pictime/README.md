@@ -178,7 +178,7 @@ python3 -m train_pictime.cluster_embeddings
 }
 ```
 
-- `cluster_id = -1` means noise/outlier (valid after human review)
+- `cluster_id = -1` means noise/outlier — filtered out of finetune train and eval (too dirty even after human review for representation learning)
 - Atomic saves, skip logic (`FORCE = False` to skip already-clustered)
 - Test path: `/data/AI/Tomer/UI_dataset_view/data`
 

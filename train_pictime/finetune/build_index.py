@@ -107,14 +107,13 @@ def main():
     cluster_ids = np.array([s["cluster_id"] for s in samples], dtype=np.int32)
 
     print(f"Writing index to {OUTPUT_PATH}...")
-    np.savez(
-        OUTPUT_PATH,
-        image_paths=image_paths,
-        bboxes=bboxes,
-        bbox_indices=bbox_indices,
-        project_ids=project_ids,
-        cluster_ids=cluster_ids,
-    )
+    np.savez(OUTPUT_PATH,
+             image_paths=image_paths,
+             bboxes=bboxes,
+             bbox_indices=bbox_indices,
+             project_ids=project_ids,
+             cluster_ids=cluster_ids,
+            )
     print("Done.")
 
 

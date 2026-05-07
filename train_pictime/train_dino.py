@@ -181,7 +181,9 @@ def safety_check_eval(cfg, evaluator:Evaluator):
     size_of_val_set = len(evaluator.uval_paths)
     max_pack_size = max(int(cfg.sizes.geom), int(cfg.sizes.rank), int(cfg.sizes.proto), int(cfg.sizes.views))
     if size_of_val_set < max_pack_size:
-        print(f"size of val set ({size_of_val_set}) is smaller than max pack size ({max_pack_size}), Please adjust cfg.sizes or provide a larger val set.")
+        print(f"size of val set ({size_of_val_set}) is smaller than max pack size ({max_pack_size}), "
+              f"Please adjust cfg.sizes or provide a larger val set.",
+             )
         raise Exception
 
 
@@ -299,13 +301,12 @@ def main():
         if ckpt_period > 0 and it > 0 and it % ckpt_period == 0:
             ckpt_dir = Path(args.output_dir) / "ckpt"
             torch.cuda.synchronize()
-            save_checkpoint(
-                ckpt_dir / str(it),
-                iteration=it,
-                model=model,
-                optimizer=optimizer,
-                overwrite=True,
-            )
+            save_checkpoint(ckpt_dir / str(it),
+                            iteration=it,
+                            model=model,
+                            optimizer=optimizer,
+                            overwrite=True,
+                           )
             keep_last_n_checkpoints(ckpt_dir, cfg.checkpointing.max_to_keep)
 
     pbar.close()

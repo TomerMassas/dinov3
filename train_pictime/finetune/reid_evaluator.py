@@ -22,12 +22,11 @@ from train_pictime.wandb_logger import log_wandb
 # CMC / mAP computation
 # ---------------------------------------------------------------------------
 
-def compute_cmc_map(
-    query_embs: torch.Tensor,
-    query_labels: torch.Tensor,
-    gallery_embs: torch.Tensor,
-    gallery_labels: torch.Tensor,
-) -> dict[str, float]:
+def compute_cmc_map(query_embs: torch.Tensor,
+                    query_labels: torch.Tensor,
+                    gallery_embs: torch.Tensor,
+                    gallery_labels: torch.Tensor,
+                   ) -> dict[str, float]:
     """Compute CMC (Rank-1/5/10) and mAP from query/gallery embeddings.
 
     Args:
@@ -89,25 +88,27 @@ class ReIDEvaluator:
     Tiered eval (when `centroid_distances_filename` is given): each tier T in
     `eval_tiers` restricts every identity's pool to the top-T fraction of crops
     closest to the cluster centroid (V11-derived), then runs Q/G split + metrics
-    on the restricted pool. cluster_id=-1 identities are dropped (no centroid).
-    All tiers share the same identity universe so comparisons are clean.
+    on the restricted pool. All tiers share the same identity universe so
+    comparisons are clean.
+
+    Caller is responsible for filtering cluster_id == -1 — the evaluator trusts
+    the input arrays (no centroid exists for noise points).
     """
 
-    def __init__(
-        self,
-        image_paths,
-        bboxes,
-        bbox_indices,
-        project_ids,
-        cluster_ids,
-        seed: int,
-        device: str = "cuda",
-        batch_size: int = 64,
-        min_k: int = 2,  # identities need >= 2 samples (1 query + 1 gallery)
-        silhouette_max_samples: int = 8000,
-        centroid_distances_filename: str | None = None,
-        eval_tiers: list[float] | None = None,
-    ):
+    def __init__(self,
+                 image_paths,
+                 bboxes,
+                 bbox_indices,
+                 project_ids,
+                 cluster_ids,
+                 seed: int,
+                 device: str = "cuda",
+                 batch_size: int = 64,
+                 min_k: int = 2,  # identities need >= 2 samples (1 query + 1 gallery)
+                 silhouette_max_samples: int = 8000,
+                 centroid_distances_filename: str | None = None,
+                 eval_tiers: list[float] | None = None,
+                ):
         self.device = device
         self.batch_size = batch_size
         self.seed = seed
@@ -117,22 +118,9 @@ class ReIDEvaluator:
         if len(image_paths) == 0:
             raise ValueError("No validation samples found")
 
-        # Tiered eval requires centroid distances. Drop cluster_id=-1 (no centroid)
-        # so all tiers share the same identity universe.
-        if centroid_distances_filename is not None:
-            keep_mask = cluster_ids != -1
-            n_dropped = int((~keep_mask).sum())
-            if n_dropped > 0:
-                print(f"ReID Eval: dropping {n_dropped} cluster_id=-1 samples (no centroid)")
-            image_paths = image_paths[keep_mask]
-            bboxes = bboxes[keep_mask]
-            bbox_indices = bbox_indices[keep_mask]
-            project_ids = project_ids[keep_mask]
-            cluster_ids = cluster_ids[keep_mask]
-            self.eval_tiers = sorted(eval_tiers) if eval_tiers else [1.0]
-        else:
-            # Backwards-compat: single full-pool eval, no tier filtering.
-            self.eval_tiers = [1.0]
+        # Tiered eval requires centroid distances; otherwise fall back to
+        # single full-pool eval (legacy behavior).
+        self.eval_tiers = sorted(eval_tiers) if (centroid_distances_filename is not None and eval_tiers) else [1.0]
 
         labels = build_global_identity_map(project_ids, cluster_ids)
         self.dataset = ReIDCropDataset(
@@ -206,9 +194,7 @@ class ReIDEvaluator:
 
         return torch.cat(embs), torch.cat(labs)
 
-    def _compute_silhouette(
-        self, embs: torch.Tensor, labels: torch.Tensor,
-    ) -> float | None:
+    def _compute_silhouette(self, embs: torch.Tensor, labels: torch.Tensor) -> float | None:
         """Silhouette score on a stratified subsample (k per identity)."""
         cap = self.silhouette_max_samples
         if cap <= 0:
@@ -255,13 +241,7 @@ class ReIDEvaluator:
         return float(silhouette_score(embs_np[chosen], labels_np[chosen], metric="cosine"))
 
     @torch.no_grad()
-    def maybe_eval(
-        self,
-        backbone,
-        proj_head,
-        iteration: int,
-        wandb_run: Any = None,
-    ) -> dict[str, float] | None:
+    def maybe_eval(self, backbone, proj_head, iteration: int, wandb_run: Any = None) -> dict[str, float] | None:
         """Run evaluation if due this iteration. Returns flat dict or None.
 
         Returns per-tier keys like `mAP_top50`, `silhouette_top100`, plus
@@ -323,11 +303,10 @@ class ReIDEvaluator:
                 result[f"silhouette_{suffix}"] = sil
 
             sil_str = f" Sil={sil:.4f}" if sil is not None else ""
-            print_lines.append(
-                f"  [{suffix}] mAP={metrics['mAP']:.4f} R1={metrics['rank1']:.4f} "
-                f"R5={metrics['rank5']:.4f} R10={metrics['rank10']:.4f}{sil_str} "
-                f"(n_id={len(q_idxs)})"
-            )
+            print_lines.append(f"  [{suffix}] mAP={metrics['mAP']:.4f} R1={metrics['rank1']:.4f} "
+                               f"R5={metrics['rank5']:.4f} R10={metrics['rank10']:.4f}{sil_str} "
+                               f"(n_id={len(q_idxs)})",
+                              )
 
         # Restore training mode
         backbone.train(was_training_bb)

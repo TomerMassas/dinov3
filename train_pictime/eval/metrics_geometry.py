@@ -16,11 +16,7 @@ def _percentiles(x: torch.Tensor, ps=(0.5, 0.9, 0.95)) -> Dict[str, float]:
     return out
 
 
-def random_pair_cosine_distance_stats(
-    E: torch.Tensor,
-    num_pairs: int = 50000,
-    seed: int = 0,
-) -> Dict[str, float]:
+def random_pair_cosine_distance_stats(E: torch.Tensor, num_pairs: int = 50000, seed: int = 0) -> Dict[str, float]:
     """
     Uniformity / global scale proxy:
     sample random pairs and compute cosine distance d = 1 - cos.
@@ -48,12 +44,11 @@ def random_pair_cosine_distance_stats(
 
 
 @torch.no_grad()
-def knn_k_distance_stats(
-    E: torch.Tensor,
-    ks: Iterable[int] = (1, 5, 10),
-    chunk: int = 512,
-    device: str = "cuda",
-) -> Dict[str, float]:
+def knn_k_distance_stats(E: torch.Tensor,
+                         ks: Iterable[int] = (1, 5, 10),
+                         chunk: int = 512,
+                         device: str = "cuda",
+                        ) -> Dict[str, float]:
     """
     For each point, compute distance to its k-th nearest neighbor (cosine distance).
     Uses chunked matmul: sims = Q @ E^T, then topk.
@@ -97,13 +92,12 @@ def knn_k_distance_stats(
     return out
 
 
-def geometry_pack(
-    E: torch.Tensor,
-    num_pairs: int,
-    ks=(1, 5, 10),
-    device: str = "cuda",
-    center_and_renorm: bool = False,
-) -> Dict[str, float]:
+def geometry_pack(E: torch.Tensor,
+                  num_pairs: int,
+                  ks=(1, 5, 10),
+                  device: str = "cuda",
+                  center_and_renorm: bool = False,
+                 ) -> Dict[str, float]:
 
     if center_and_renorm:
         if E.is_cuda:
