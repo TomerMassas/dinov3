@@ -1,6 +1,7 @@
 TRIALS:
 
 1. play with the n_blocks to unfreeze
+2.lr_backbone sweep
 
 
 2. use head or not use head?
@@ -9,4 +10,5 @@ TRIALS:
 5. train on the whole dataset, and take into account that big gallerie smight have many identities so we need to think of the p_value carefully
 6. bigger pk batches
 7. try arcface. we can also try arcface on weights that first trained with supcon, so its a second stage finetune
+
 

@@ -521,3 +521,95 @@ to active trials, not a historical archive (progress.md is the archive).
 - Decide `BestCheckpointTracker` metric (full-tier silhouette vs tier-50
   silhouette) once more tier data lands.
 - Pink V13 missing ckpts root cause (deferred from 2026-05-06).
+
+## 2026-05-11 — Trial 2 verdict + real-world eval pipeline shipped
+
+### Trial 2 (lr_backbone × n_blocks sweep) — verdict: lr=1e-4 wins, gap is thin
+
+Reviewed n_blocks=6 slice of the W&B group `trial_lrbb_x_nblocks` (Tomer
+filtered out n_blocks=2 and 12 for chart clarity; said both were
+"slightly lower"). Final values @ ~8k iters:
+
+| LR     | mAP_top50 | mAP_top100 | R1_top50 | R1_top100 | sil_top50 | sil_top100 |
+|--------|-----------|------------|----------|-----------|-----------|------------|
+| 1e-4   | **0.840** | **0.718**  | ~0.930   | 0.882     | **0.408** | **0.285**  |
+| 5e-5   | 0.835     | 0.713      | 0.927    | ~0.885    | 0.402     | 0.280      |
+| 5e-4   | 0.827     | 0.702      | ~0.918   | 0.872     | 0.400     | 0.277      |
+| 1e-5   | 0.827     | 0.697      | ~0.920   | 0.885     | 0.392     | 0.262      |
+
+- 1e-4 leads consistently on mAP and silhouette (cleanest signal:
+  sil_top100 = 0.285 vs 0.262 for 1e-5).
+- 5e-5 vs 1e-4 gap is ~0.005 mAP_top50 / ~0.006 silhouette — within plausible
+  single-seed variance. Win is real but thin.
+- 5e-4 trained stably (no divergence at the top end of the LR range).
+- Pre-trial assumption holds: `lr_backbone=1e-4` is the keeper.
+- Trial 2 result still needs writing to `experiment.md` Trial 2 Results
+  section + the n_blocks=2/12 slices need eyeballing to fully close out
+  the original "is 2 enough or does LR unlock 6" question. Deferred.
+
+### Real-world eval pipeline shipped — `train_pictime/finetune/realworld_eval/`
+
+Goal Tomer set: "cluster a test set with the current best finetune weights,
+see the clusters we'd be providing in production, see where it excels /
+struggles." Built end-to-end.
+
+New files (4):
+- `__init__.py`
+- `config.py` — **single source of truth** for `FINETUNE_VERSION_DIR`
+  (V31, Trial 2 winner), `OUTPUT_BASE`, sampling/HDBSCAN/viewer knobs.
+  Both scripts import from here (Tomer pushback during build: don't
+  duplicate the V<n> constant across scripts).
+- `cluster_test_set.py` — samples 100 projects NOT in
+  `single_cluster_projects_v2.json` (filter: ≥50 person bboxes per
+  project), loads V11 + V31 best-silhouette ckpt, per-project embed →
+  HDBSCAN cluster → save clusters JSON + cropped JPGs. Reuses
+  `load_backbone` + `build_projection_head` from `finetune_reid.py` and
+  `find_best_silhouette_ckpt` from `reeval_tiered.py`.
+- `build_html_viewer.py` — pure stdlib, generates `ui/index.html`
+  (100-card grid) + `ui/projects/<pid>.html` (cluster rows with
+  prev/next nav). Relative-paths only, no server needed for content;
+  Tomer added a comment with the working SSH tunnel command for serving.
+
+### Output layout (test set frozen, model-independent crops shared)
+
+```
+/data/AI/Tomer/realworld_eval/
+├── test_projects.json           ← GLOBAL — sampled once, reused across ckpts
+├── crops/<pid>/<file>__bbN.jpg  ← GLOBAL — model-independent bbox crops
+└── V31_iter8520_sil0.2858/
+    ├── clusters/<pid>.json      ← per-ckpt cluster labels
+    └── ui/                      ← per-ckpt HTML viewer
+```
+
+Future ckpt evals reuse the same 100 projects + crops; only `clusters/`
+and `ui/` get regenerated.
+
+### Build-time decisions Tomer pushed back on (logged for context)
+- Test set + crops moved from per-ckpt subdir to global `OUTPUT_BASE`
+  level after Tomer flagged "test set should be picked once, reuse".
+- Initial guess for Trial 2 winner V<n> was V28; Tomer corrected to V31.
+- Crops dir skip logic switched from "dir non-empty → skip" to per-file
+  existence check, so an interrupted run gets completed rather than
+  left half-cropped.
+- `find_output_dir` sort switched from lexicographic to mtime so
+  "newest" actually means newest filesystem-time.
+
+### First real-world run — V31 ckpt
+- Ckpt: `V31/ckpt/ckpt_iter8520_sil0.2858.pt`
+- 100/100 projects done, 0 skipped, 0 errors
+- Mean clusters / project: **10.17**
+- Mean crops / project: **139.7**
+- Noise fraction: **13.9%**
+- Serving via `python3 -m http.server 8080` on VM + SSH tunnel
+  (`ssh -L 8080:127.0.0.1:8080 azureuser@10.0.32.13`) → open
+  `http://localhost:8080/V31_iter8520_sil0.2858/ui/index.html` locally.
+
+### Open
+- Eyeball pass on the 100 projects — Tomer mid-review. Patterns to watch:
+  within-person splits (same person, different outfit), between-person
+  merges, projects with very high noise %.
+- Trial 2 final `experiment.md` write-up + n_blocks=2/12 readings still
+  pending.
+- "Multiple matching output dirs" branch in `build_html_viewer.py` is
+  untested (only fires if same V<n> is evaluated twice with different
+  best ckpts — won't happen until V31 has a newer best-3).
