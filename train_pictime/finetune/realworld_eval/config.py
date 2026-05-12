@@ -14,21 +14,26 @@ pointing at V31 while the other still points at V28).
 # the saved best-3 ckpts.
 FINETUNE_VERSION_DIR = "/data/AI/Tomer/dinov3/train_pictime/finetune_experiments/V31"
 
-DATASET_ROOT = "/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]"
+# Flip TEST_SET_NAME to switch test sets. Each test set lives under its own
+# subdir of OUTPUT_BASE so they coexist without collision.
+DATASET_PARENT = "/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune"
+TEST_SET_NAME = "Wedding[1]"
+DATASET_ROOT = f"{DATASET_PARENT}/{TEST_SET_NAME}"
 
 # Filter / exclude file (train+eval pool) — same path used by build_index.FILTER_PATH.
-EXCLUDE_FILE = "/data/AI/Tomer/dinov3/train_pictime/finetune/single_cluster_projects_v2.json"
+# Set to None when the test set has no overlap with the train pool (e.g. Wedding[1]).
+EXCLUDE_FILE = None #"/data/AI/Tomer/dinov3/train_pictime/finetune/single_cluster_projects_v2.json"
 
-OUTPUT_BASE = "/data/AI/Tomer/realworld_eval"
+OUTPUT_BASE = "/data/AI/Tomer/dinov3/train_pictime/finetune/realworld_eval/results"
 
 
 # ---------------------------------------------------------------------------
-# Sampling (test set built once, frozen at OUTPUT_BASE/test_projects.json)
+# Sampling (test set built once, frozen at OUTPUT_BASE/<TEST_SET_NAME>/test_projects.json)
 # ---------------------------------------------------------------------------
 
 N_SAMPLE = 100
 SEED = 42
-MIN_BBOXES = 50
+MIN_BBOXES = 0
 
 
 # ---------------------------------------------------------------------------

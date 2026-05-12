@@ -1,13 +1,13 @@
 """Standalone HTML viewer for real-world eval clusters.
 
 Reads:
-  <OUTPUT_BASE>/test_projects.json              (GLOBAL — shared across ckpts)
-  <OUTPUT_BASE>/crops/<pid>/*.jpg               (GLOBAL — shared across ckpts)
-  <OUTPUT_BASE>/<ckpt_dir>/clusters/<pid>.json  (per-ckpt — model-dependent)
+  <OUTPUT_BASE>/<TEST_SET_NAME>/test_projects.json              (per-test-set, shared across ckpts)
+  <OUTPUT_BASE>/<TEST_SET_NAME>/crops/<pid>/*.jpg               (per-test-set, shared across ckpts)
+  <OUTPUT_BASE>/<TEST_SET_NAME>/<ckpt_dir>/clusters/<pid>.json  (per-ckpt — model-dependent)
 
 Writes:
-  <OUTPUT_BASE>/<ckpt_dir>/ui/index.html
-  <OUTPUT_BASE>/<ckpt_dir>/ui/projects/<pid>.html
+  <OUTPUT_BASE>/<TEST_SET_NAME>/<ckpt_dir>/ui/index.html
+  <OUTPUT_BASE>/<TEST_SET_NAME>/<ckpt_dir>/ui/projects/<pid>.html
 
 Pure stdlib. No torch / no model load — fast, runs in seconds. Self-contained
 output: relative paths only, no server needed. Open `index.html` in any
@@ -31,7 +31,7 @@ from urllib.parse import quote
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from train_pictime.finetune.realworld_eval.config import (
-    FINETUNE_VERSION_DIR, OUTPUT_BASE,
+    FINETUNE_VERSION_DIR, OUTPUT_BASE, TEST_SET_NAME,
 )
 
 
@@ -272,20 +272,22 @@ def pick_thumb(crops_dir: Path,
 
 
 def main():
-    output_dir = find_output_dir(OUTPUT_BASE, FINETUNE_VERSION_DIR)
+    test_set_base = str(Path(OUTPUT_BASE) / TEST_SET_NAME)
+    output_dir = find_output_dir(test_set_base, FINETUNE_VERSION_DIR)
     print(f"Building HTML viewer for: {output_dir}")
 
-    # test_projects.json + crops/ live at OUTPUT_BASE (global, shared across ckpts).
-    test_projects_path = Path(OUTPUT_BASE) / "test_projects.json"
+    # test_projects.json + crops/ live under OUTPUT_BASE/<TEST_SET_NAME>/
+    # (per-test-set, shared across all ckpt evals of that test set).
+    test_projects_path = Path(test_set_base) / "test_projects.json"
     if not test_projects_path.exists():
-        raise FileNotFoundError(f"Global test_projects.json not found at {test_projects_path}. "
+        raise FileNotFoundError(f"test_projects.json not found at {test_projects_path}. "
                                 f"Run cluster_test_set.py first.")
     with open(test_projects_path, "r") as f:
         test_data = json.load(f)
     pids: list[str] = sorted(test_data["project_ids"])
 
     clusters_root = output_dir / "clusters"
-    crops_root = Path(OUTPUT_BASE) / "crops"
+    crops_root = Path(test_set_base) / "crops"
     ui_dir = output_dir / "ui"
     projects_dir = ui_dir / "projects"
     ui_dir.mkdir(parents=True, exist_ok=True)

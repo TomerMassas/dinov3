@@ -613,3 +613,71 @@ and `ui/` get regenerated.
 - "Multiple matching output dirs" branch in `build_html_viewer.py` is
   untested (only fires if same V<n> is evaluated twice with different
   best ckpts — won't happen until V31 has a newer best-3).
+
+## 2026-05-12 — Realworld eval output path fix + multi-test-set support
+
+### OUTPUT_BASE relocation
+- Tomer flagged that `cluster_test_set.py` wrote to `/data/AI/Tomer/realworld_eval/`
+  (loose dir at /data/AI/Tomer/) instead of nested under the repo. Tomer's
+  chosen target: `/data/AI/Tomer/dinov3/train_pictime/finetune/realworld_eval/results/`
+  (data colocated with code, but under a `results/` subdir to keep code and
+  outputs separate).
+- One-line fix in `config.py`. Bash migration command given:
+  `mv /data/AI/Tomer/realworld_eval/* .../realworld_eval/results/ && rmdir ...`
+
+### Broken-images diagnosis (no code change)
+- After moving, Tomer saw broken-image icons in the HTML viewer. Diagnosed
+  through several rounds — wrong `-d` path on the http.server (`-d /dinov3/...`
+  was missing the `/data/AI/Tomer/` prefix; absolute path interpretation, not
+  relative). Plus likely stale nohup'd server still listening on 8080.
+- HTML uses relative `../../../crops/...` paths, so the move itself didn't
+  break anything — but the server needs to root at `OUTPUT_BASE` (or any
+  ancestor) for the relative paths to resolve.
+- Side reference for next session: `pgrep -af "http.server 8080"` (dry-run)
+  vs `pkill [-9] -f "http.server 8080"` for cleanup. `kill -9` = SIGKILL.
+
+### Multi-test-set support — `TEST_SET_NAME` knob
+Tomer has a new test set `Wedding[1]` (~106 projects, harder galleries with
+many people per scene). Wanted to run real-world eval on it alongside the
+existing Portraits[26] eval without collision.
+
+Design: single `TEST_SET_NAME` constant in `config.py`. All outputs nest
+under `OUTPUT_BASE/<TEST_SET_NAME>/`. The HTML viewer's relative paths
+(`../../../crops/...`) still resolve correctly since `crops/` and `V<n>_.../`
+stay siblings — they just live one level deeper.
+
+Config knobs for Wedding (locked with Tomer): `N_SAMPLE=100`, `MIN_BBOXES=0`
+(don't drop any of the 106), `EXCLUDE_FILE=None` (no train-pool overlap).
+HDBSCAN params unchanged (apples-to-apples with Portraits first pass).
+
+### Files changed
+- `train_pictime/finetune/realworld_eval/config.py` — added `DATASET_PARENT`,
+  `TEST_SET_NAME`, derived `DATASET_ROOT`. `EXCLUDE_FILE → None`,
+  `MIN_BBOXES → 0`. `OUTPUT_BASE` corrected to `.../realworld_eval/results`.
+- `train_pictime/finetune/realworld_eval/cluster_test_set.py` — import
+  `TEST_SET_NAME`, prefix all three output paths (`test_set_path`,
+  `crops_root`, `output_dir`) under it. Added `EXCLUDE_FILE is None`
+  branch. Docstrings updated ("global" → "per-test-set").
+- `train_pictime/finetune/realworld_eval/build_html_viewer.py` — same
+  pattern: import `TEST_SET_NAME`, compute `test_set_base` local,
+  forward to `find_output_dir`, `test_projects_path`, `crops_root`.
+  HTML generation untouched (relative paths still correct).
+
+### Output layout (target)
+```
+results/
+├── Portraits[26]/        ← existing data migrated here
+│   ├── test_projects.json, crops/, V31_iter8520_sil0.2858/
+└── Wedding[1]/           ← cluster_test_set.py running into this now
+    ├── test_projects.json, crops/, V31_iter8520_sil0.2858/
+```
+
+### Open
+- `cluster_test_set.py` running on VM for Wedding[1] — finishes overnight.
+  Tomorrow: build_html_viewer + serve + eyeball pass.
+- Portraits HTML viewer reportedly broken after migration — need to rerun
+  `build_html_viewer.py` with `TEST_SET_NAME="Portraits[26]"`. Per the
+  relative-paths analysis the existing HTML *should* still work, but Tomer
+  flagged it as broken — will verify tomorrow.
+- Carry-forward from 2026-05-11: Trial 2 `experiment.md` write-up still
+  pending; n_blocks=2 and 12 slices not yet read.

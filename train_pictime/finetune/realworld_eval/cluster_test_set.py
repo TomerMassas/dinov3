@@ -14,9 +14,10 @@ Pipeline:
    backbone + proj_head + F.normalize → [N, 128] L2-normed embeddings.
    HDBSCAN cluster (same params as cluster_embeddings.py).
 4. Save per-ckpt clusters JSON (cluster_embeddings.py schema) under
-   <OUTPUT_BASE>/V<n>_iter<N>_sil<S>/clusters/. Save cropped JPGs (for
-   the HTML viewer) under the GLOBAL <OUTPUT_BASE>/crops/ — they're
-   model-independent so they're shared across all ckpt evals.
+   <OUTPUT_BASE>/<TEST_SET_NAME>/V<n>_iter<N>_sil<S>/clusters/. Save cropped
+   JPGs (for the HTML viewer) under <OUTPUT_BASE>/<TEST_SET_NAME>/crops/ —
+   they're model-independent so they're shared across all ckpt evals
+   *within the same test set*.
 
 Usage:
     python3 -m train_pictime.finetune.realworld_eval.cluster_test_set
@@ -54,7 +55,7 @@ from train_pictime.finetune.reid_dataset import get_val_transform
 from train_pictime.finetune.realworld_eval.config import (
     BATCH_SIZE, DATASET_ROOT, EXCLUDE_FILE, FINETUNE_VERSION_DIR,
     HDBSCAN_METRIC, HDBSCAN_MIN_CLUSTER_SIZE, HDBSCAN_MIN_SAMPLES,
-    MIN_BBOXES, N_SAMPLE, NUM_WORKERS, OUTPUT_BASE, SEED,
+    MIN_BBOXES, N_SAMPLE, NUM_WORKERS, OUTPUT_BASE, SEED, TEST_SET_NAME,
     VIEWER_CROP_JPEG_QUALITY, VIEWER_CROP_MAX_EDGE,
 )
 
@@ -133,7 +134,7 @@ def load_or_create_test_set(test_set_path: Path,
                             min_bboxes: int,
                             seed: int,
                            ) -> list[str]:
-    """Global, ckpt-independent test set: write once at OUTPUT_BASE, reuse forever."""
+    """Per-test-set, ckpt-independent: written once at OUTPUT_BASE/<TEST_SET_NAME>, reused forever."""
     if test_set_path.exists():
         with open(test_set_path, "r") as f:
             data = json.load(f)
@@ -306,20 +307,24 @@ def main():
         raise FileNotFoundError(f"FINETUNE_VERSION_DIR has no ckpt/: {ckpt_dir}")
     ckpt_path, it, train_sil = find_best_silhouette_ckpt(ckpt_dir)
     version_name = Path(FINETUNE_VERSION_DIR).name
-    output_dir = Path(OUTPUT_BASE) / f"{version_name}_iter{it}_sil{train_sil:.4f}"
+    output_dir = Path(OUTPUT_BASE) / TEST_SET_NAME / f"{version_name}_iter{it}_sil{train_sil:.4f}"
     print(f"\nFinetune ckpt:  {ckpt_path}")
     print(f"  iteration   = {it}")
     print(f"  train sil   = {train_sil:.4f}")
     print(f"Output dir:     {output_dir}")
 
-    # --- Build or load global, ckpt-independent test set ---
-    with open(EXCLUDE_FILE, "r") as f:
-        exclude_payload = json.load(f)
-    exclude_pids = set(exclude_payload if isinstance(exclude_payload, list)
-                       else exclude_payload.get("project_ids", []))
-    print(f"\nExcluded pool:  {len(exclude_pids)} project_ids in {EXCLUDE_FILE}")
+    # --- Build or load per-test-set, ckpt-independent test set ---
+    if EXCLUDE_FILE is None:
+        exclude_pids: set[str] = set()
+        print("\nExcluded pool:  (none — EXCLUDE_FILE is None)")
+    else:
+        with open(EXCLUDE_FILE, "r") as f:
+            exclude_payload = json.load(f)
+        exclude_pids = set(exclude_payload if isinstance(exclude_payload, list)
+                           else exclude_payload.get("project_ids", []))
+        print(f"\nExcluded pool:  {len(exclude_pids)} project_ids in {EXCLUDE_FILE}")
 
-    test_set_path = Path(OUTPUT_BASE) / "test_projects.json"
+    test_set_path = Path(OUTPUT_BASE) / TEST_SET_NAME / "test_projects.json"
     test_pids = load_or_create_test_set(test_set_path=test_set_path,
                                         dataset_root=Path(DATASET_ROOT),
                                         exclude_pids=exclude_pids,
@@ -347,12 +352,13 @@ def main():
     print("Finetune state loaded.")
 
     # --- Per-project: embed → cluster → save ---
-    # clusters/ is per-ckpt (model-dependent); crops/ is global (model-independent
-    # bbox crops from the source images, shared across all ckpt evals).
+    # clusters/ is per-ckpt (model-dependent); crops/ is per-test-set
+    # (model-independent bbox crops from the source images, shared across all
+    # ckpt evals within the same test set).
     transform = get_val_transform()
 
     clusters_root = output_dir / "clusters"
-    crops_root = Path(OUTPUT_BASE) / "crops"
+    crops_root = Path(OUTPUT_BASE) / TEST_SET_NAME / "crops"
     clusters_root.mkdir(parents=True, exist_ok=True)
     crops_root.mkdir(parents=True, exist_ok=True)
 
