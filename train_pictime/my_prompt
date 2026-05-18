@@ -7,9 +7,19 @@ TRIALS:
 2. use head or not use head?
 3. tau sweep
 4. train on bigger backbone (vitB16)
-5. train on the whole dataset, and take into account that big gallerie smight have many identities so we need to think of the p_value carefully
+5. train on the whole dataset, and take into account that big gallerie might have many identities so we need to think of the p_value carefully
 6. bigger pk batches
 7. try arcface. we can also try arcface on weights that first trained with supcon, so its a second stage finetune
 8. mask the faces before i train, so the features are based on body parts and not faces.
 
-i want to run the cluster test on a new test set. i have created a new folder, instead of Portraint[26], i have another folder called Wedding[1], and inside there are around 106 project dirs. each project dir has images folder with the images and detections.json. i want to use this as my test set. those are harder galleries with many people. please plan what i need to do in order to test this set
+
+
+
+
+
+
+
+
+
+
+

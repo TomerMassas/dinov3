@@ -1,7 +1,7 @@
 # --- W&B ---
 wandb_project: "person-reid-finetune"
-experiment_tag: "vanilla_v11ckpt13k_v2index"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
-experiment_group: "trial_curriculum_v1"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
+experiment_tag: "face_blur_sf0.3_v11ckpt13k"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
+experiment_group: "trial_face_blur"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
 
 # --- Paths ---
 data_base_path: "/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]"
@@ -74,3 +74,16 @@ curriculum:
   p_end: 0.8
   end_frac: 0.7
   centroid_distances_filename: "crop_distances_v2.json"
+
+# --- Face blur (Trial 3) ---
+# When enabled: Gaussian-blur every face region inside each body crop before
+# training. Forces the model to learn body features (clothing, build, posture)
+# rather than face features. Eval is never blurred — any train→eval gain is
+# body-feature generalization to the unblurred eval distribution.
+# Adaptive blur radius = sigma_factor * min(face_w_px, face_h_px) computed in
+# original-image pixels (before Resize), so the blur is invariant to image
+# resolution and survives the downstream resize.
+face_blur:
+  enabled: true
+  sigma_factor: 0.3
+  faces_filename: "faces.json"

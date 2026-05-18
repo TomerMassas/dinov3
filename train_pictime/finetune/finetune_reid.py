@@ -306,16 +306,29 @@ def run_finetune(cfg):
 
     centroid_distances_filename = (curriculum_cfg.centroid_distances_filename if curriculum_enabled else None)
 
+    # Face-blur config (Trial 3) — mirrors the curriculum pattern. Missing block = disabled.
+    face_blur_cfg = cfg.get("face_blur", None)
+    face_blur_enabled = bool(face_blur_cfg and face_blur_cfg.get("enabled", False))
+    face_blur_sigma_factor = (float(face_blur_cfg.sigma_factor) if face_blur_enabled else 0.3)
+    face_blur_faces_filename = (str(face_blur_cfg.faces_filename) if face_blur_enabled else "faces.json")
+
     # Train dataset
     train_labels = build_global_identity_map(project_ids[train_mask], cluster_ids[train_mask])
     num_classes = int(train_labels.max()) + 1  # labels are contiguous 0..N-1 by construction
     print(f"Num classes: {num_classes}")
-    train_dataset = ReIDCropDataset(
-        image_paths[train_mask], bboxes[train_mask], bbox_indices[train_mask],
-        project_ids[train_mask], cluster_ids[train_mask], train_labels,
-        transform=get_train_transform(), min_k=cfg.K,
-        centroid_distances_filename=centroid_distances_filename,
-    )
+    train_dataset = ReIDCropDataset(image_paths[train_mask],
+                                    bboxes[train_mask],
+                                    bbox_indices[train_mask],
+                                    project_ids[train_mask],
+                                    cluster_ids[train_mask],
+                                    train_labels,
+                                    transform=get_train_transform(),
+                                    min_k=cfg.K,
+                                    centroid_distances_filename=centroid_distances_filename,
+                                    face_blur_enabled=face_blur_enabled,
+                                    face_blur_sigma_factor=face_blur_sigma_factor,
+                                    face_blur_faces_filename=face_blur_faces_filename,
+                                   )
     print(f"Valid projects for sampling: {len(train_dataset.valid_projects)}")
     print(f"Valid identities (>= {cfg.K} samples): "
           f"{len([v for v in train_dataset.identity_to_indices.values() if len(v) >= cfg.K])}")

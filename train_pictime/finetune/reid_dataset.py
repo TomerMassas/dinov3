@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import torch
-from PIL import Image
+from PIL import Image, ImageFilter
 from torch.utils.data import Dataset, Sampler
 from torchvision import transforms
 
@@ -114,6 +114,105 @@ def build_global_identity_map(project_ids, cluster_ids):
 
 
 # ---------------------------------------------------------------------------
+# Face blur (Trial 3)
+# ---------------------------------------------------------------------------
+
+def _build_face_lookup(image_paths,
+                       project_ids,
+                       faces_filename,
+                      ):
+    """Walk unique projects, load each <project_dir>/<faces_filename>.
+
+    Returns:
+        face_lookup: dict[(project_id, filename), list[(x1,y1,x2,y2)]]
+                     — keys exist only for images that have >= 1 face detected
+        stats: dict with counts (n_projects, n_missing, n_keys, n_faces)
+    """
+    project_to_first_idx: dict[str, int] = {}
+    for i in range(len(image_paths)):
+        pid = str(project_ids[i])
+        if pid not in project_to_first_idx:
+            project_to_first_idx[pid] = i
+
+    face_lookup: dict[tuple[str, str], list[tuple[float, float, float, float]]] = {}
+    n_missing = 0
+    n_faces = 0
+
+    for pid, idx in project_to_first_idx.items():
+        proj_dir = Path(str(image_paths[idx])).parent.parent
+        faces_path = proj_dir / faces_filename
+        if not faces_path.exists():
+            n_missing += 1
+            continue
+        with open(faces_path) as f:
+            raw = json.load(f)
+        for fname, dets in raw.items():
+            bboxes = [tuple(d["bbox"]) for d in dets]
+            if bboxes:
+                face_lookup[(pid, fname)] = bboxes
+                n_faces += len(bboxes)
+
+    stats = {
+        "n_projects": len(project_to_first_idx),
+        "n_missing":  n_missing,
+        "n_keys":     len(face_lookup),
+        "n_faces":    n_faces,
+    }
+    return face_lookup, stats
+
+
+def apply_face_blur(crop,
+                    body_bbox,
+                    faces,
+                    img_size,
+                    sigma_factor,
+                   ):
+    """Gaussian-blur each face region inside a body crop (in place via paste).
+
+    Args:
+        crop:         PIL.Image — body crop (already cropped from full image)
+        body_bbox:    (x1, y1, x2, y2) normalized [0,1] full-image xyxy of the body crop
+        faces:        list of (x1, y1, x2, y2) normalized [0,1] full-image xyxy face boxes
+        img_size:     (W, H) of the original full image in pixels
+        sigma_factor: PIL GaussianBlur radius = sigma_factor * min(face_w_px, face_h_px)
+
+    Returns:
+        The crop (same object, mutated in place). Faces outside the crop bounds
+        are clipped; faces with <2px in either dim after clipping are skipped.
+    """
+    if not faces:
+        return crop
+
+    W, H = img_size
+    bx1, by1, _, _ = body_bbox
+    bx1_px = bx1 * W
+    by1_px = by1 * H
+    crop_W, crop_H = crop.size
+
+    for fx1, fy1, fx2, fy2 in faces:
+        lx1 = int(round(fx1 * W - bx1_px))
+        ly1 = int(round(fy1 * H - by1_px))
+        lx2 = int(round(fx2 * W - bx1_px))
+        ly2 = int(round(fy2 * H - by1_px))
+
+        lx1 = max(0, lx1)
+        ly1 = max(0, ly1)
+        lx2 = min(crop_W, lx2)
+        ly2 = min(crop_H, ly2)
+
+        face_w_px = lx2 - lx1
+        face_h_px = ly2 - ly1
+        if face_w_px < 2 or face_h_px < 2:
+            continue
+
+        radius = sigma_factor * min(face_w_px, face_h_px)
+        face_patch = crop.crop((lx1, ly1, lx2, ly2)).filter(ImageFilter.GaussianBlur(radius=radius))
+        crop.paste(face_patch, (lx1, ly1))
+
+    return crop
+
+
+# ---------------------------------------------------------------------------
 # Dataset
 # ---------------------------------------------------------------------------
 
@@ -130,6 +229,9 @@ class ReIDCropDataset(Dataset):
                  transform=None,
                  min_k: int = 1,
                  centroid_distances_filename: str | None = None,
+                 face_blur_enabled: bool = False,
+                 face_blur_sigma_factor: float = 0.3,
+                 face_blur_faces_filename: str = "faces.json",
                 ):
         """
         Args:
@@ -144,6 +246,16 @@ class ReIDCropDataset(Dataset):
                 `identity_to_sorted_indices` (per-identity dataset indices ordered by
                 ascending cosine distance to the cluster centroid). Required by
                 PKBatchSampler when curriculum is active. None disables curriculum.
+            face_blur_enabled:
+                When True, build a per-image face-bbox lookup and Gaussian-blur each
+                face region inside the body crop in __getitem__. Default False keeps
+                vanilla behavior (no lookup built, no blur applied).
+            face_blur_sigma_factor:
+                PIL GaussianBlur radius = sigma_factor * min(face_w_px, face_h_px) in
+                original-image pixels. 0.3 ≈ heavy blur that destroys identity.
+            face_blur_faces_filename:
+                Per-project filename to load face bboxes from (same shape as
+                detections.json). Loaded at init only when face_blur_enabled=True.
         """
         self.image_paths = image_paths
         self.bboxes = bboxes
@@ -177,6 +289,22 @@ class ReIDCropDataset(Dataset):
                 image_paths, bbox_indices, project_ids, cluster_ids, labels,
                 centroid_distances_filename,
             )
+
+        # Face blur: per-image face-bbox lookup (only built when enabled)
+        self.face_blur_enabled = face_blur_enabled
+        self.face_blur_sigma_factor = face_blur_sigma_factor
+        if face_blur_enabled:
+            self.face_lookup, stats = _build_face_lookup(image_paths,
+                                                        project_ids,
+                                                        face_blur_faces_filename,
+                                                       )
+            n_loaded = stats["n_projects"] - stats["n_missing"]
+            print(f"[face_blur] Loaded {n_loaded}/{stats['n_projects']} projects "
+                  f"({stats['n_missing']} missing {face_blur_faces_filename}), "
+                  f"{stats['n_keys']} (project, file) keys, {stats['n_faces']} total faces, "
+                  f"sigma_factor={face_blur_sigma_factor}")
+        else:
+            self.face_lookup = None
 
     @staticmethod
     def _build_sorted_indices(image_paths,
@@ -252,6 +380,18 @@ class ReIDCropDataset(Dataset):
         w, h = img.size
         x1, y1, x2, y2 = self.bboxes[idx]
         crop = img.crop((int(x1 * w), int(y1 * h), int(x2 * w), int(y2 * h)))
+
+        if self.face_blur_enabled:
+            fname = Path(str(self.image_paths[idx])).name
+            pid = str(self.project_ids[idx])
+            faces = self.face_lookup.get((pid, fname), [])
+            if faces:
+                crop = apply_face_blur(crop,
+                                       (x1, y1, x2, y2),
+                                       faces,
+                                       (w, h),
+                                       self.face_blur_sigma_factor,
+                                      )
 
         if self.transform is not None:
             crop = self.transform(crop)

@@ -681,3 +681,108 @@ results/
   flagged it as broken — will verify tomorrow.
 - Carry-forward from 2026-05-11: Trial 2 `experiment.md` write-up still
   pending; n_blocks=2 and 12 slices not yet read.
+
+## 2026-05-18 — /setup-claude-in-repo command + Trial 3 (face-blur) shipped & launched
+
+### `/setup-claude-in-repo` — new global slash command
+
+Sibling to `/migrate-to-work-dir`. Bootstraps `.work/` in a freshly cloned
+repo so /session-start, /session-end, /handoff, /park, /pushback work
+identically across repos. Lives at `~/.claude-work/commands/setup-claude-in-repo.md`.
+
+7-step flow:
+1. Abort if `<repo>/.work/` exists.
+2. Scaffold 8 files (templates baked inline — no dependency on dinov3):
+   `MEMORY.md`, `user_profile.md` (Focus line blank), `feedback_working_guidelines.md`,
+   `feedback_function_signatures.md`, `project_progress.md` (header + first entry),
+   `project_roadmap.md` (empty sections), `project_context.md` (frontmatter only),
+   `my_prompt` (empty).
+3. Append `.gitignore` lines (`parked.md`, `handoff.md`).
+4. Report scaffold inline.
+5. Analyze the repo carefully (READMEs, manifests, top-level structure, recent
+   commits, entry points — ~10-15 reads max).
+6. Draft `project_context.md` body + `Focus:` line in `user_profile.md`, show
+   inline, wait for go, then write.
+7. Final tree + suggested commit command.
+
+Deliberately NOT copied: `feedback_fix_sister_scripts.md` — project-specific
+(script-families pattern doesn't apply universally).
+
+### Trial 3 — face-blur finetune
+
+Hypothesis: model is over-reliant on face features. Blurring faces at train
+time forces body-feature learning (clothing, build, posture). Eval is never
+blurred → any train→eval gain is body-feature generalization to the unblurred
+eval distribution.
+
+Setup (inherits current production config, single knob flipped):
+- Backbone: V11/ckpt/13000
+- Mode C: `unfreeze_after=1000, unfreeze_n_blocks=6, lr_backbone=1e-4`
+- SupCon τ=0.07, head lr=1e-3, P=16, K=4, 10 epochs, curriculum off
+- **New:** `face_blur.enabled=true`
+
+### Technique decisions
+
+- **Gaussian blur** (Tomer's pick over mean fill / noise / soft-edge).
+- **No padding** — blur stays exactly within the yolov11l-face bbox.
+- **Adaptive sigma**: PIL `GaussianBlur(radius = sigma_factor * min(face_w_px, face_h_px))`
+  computed in original-image pixels, so blur is invariant to image resolution
+  and survives the downstream `Resize(256) → CenterCrop(224)`.
+- Default `sigma_factor=0.3` → radius = 30% of smaller face dim.
+
+### Code shipped
+
+- **`train_pictime/finetune/reid_dataset.py`** — new module-level helpers
+  `apply_face_blur()` + `_build_face_lookup()`. `ReIDCropDataset.__init__`
+  gained 3 kwargs (`face_blur_enabled=False, face_blur_sigma_factor=0.3,
+  face_blur_faces_filename="faces.json"`). Lookup is built only when
+  enabled (no 5-10s startup cost otherwise) and logs a one-line summary.
+  `__getitem__` calls `apply_face_blur` between the PIL crop and the
+  transform. Edge cases: missing `faces.json` → skip; face outside crop
+  → clip; <2px clipped face → skip.
+
+- **`train_pictime/finetune/reid_config.yaml`** — new `face_blur:` block
+  (parallel to `curriculum:`), defaults to disabled. For this run Tomer
+  set `experiment_tag: "face_blur_sf0.3_v11ckpt13k"`,
+  `experiment_group: "trial_face_blur"`, `face_blur.enabled: true`.
+
+- **`train_pictime/finetune/finetune_reid.py`** — reads `face_blur` via
+  `cfg.get(...)` mirroring the curriculum pattern; forwards to dataset.
+  Rewrapped the `ReIDCropDataset(...)` constructor call to column-aligned
+  style while touching it.
+
+- **`train_pictime/finetune/debug_face_blur.py`** (new) — simple debug
+  viz: builds dataset with face_blur on, picks 16 indices with faces from
+  the first 200 samples, denormalizes each crop and shows via `plt.show()`.
+  (Original version saved to disk; Tomer tweaked to interactive plt
+  before launching the trial.)
+
+- **`train_pictime/finetune/reid_evaluator.py`** — untouched. Evaluator
+  builds its own dataset (`reid_evaluator.py:126`) without face_blur
+  kwargs → eval auto-defaults to no-blur. Confirmed.
+
+### Plan-review pattern that worked
+
+Three rounds of plan refinement before code: (1) initial proposal with
+4 technique options + padding knob + 3-panel debug viz, (2) Tomer
+narrowed to blur, no padding, simple viz, (3) explicit completeness
+re-review surfaced 10+ integration details (current config is post-V15
+not Trial-2-pristine; eval pathway independence; init-time lookup
+gating; stale experiment_tag; tiny-face edge case; etc.). Single approve
+on the third pass.
+
+### Open
+
+- **Trial 3 running on the VM** — awaiting tier-50 mAP curve vs current
+  production baseline (same `unfreeze1000_nblocks6_lrbb1e-4` recipe
+  without blur). Tomer will update with results.
+- **Follow-up ladder if Trial 3 wins:**
+  - 3b: SupCon τ adjustment
+  - 3c: padding (catch hairline/jaw)
+  - 3d: ALSO eval-masked — diagnostic "body-only" score
+- **Carried forward (not actioned this session):**
+  - Wedding[1] HTML viewer eyeball pass + Portraits HTML viewer rebuild
+    (from 2026-05-12 handoff; Wedding cluster_test_set was running overnight)
+  - Trial 2 `experiment.md` write-up — n_blocks=2/12 slices not yet read
+  - Pink V13 missing ckpts root cause (deferred from 2026-05-06)
+  - `BestCheckpointTracker` metric switch (full-tier vs tier-50 silhouette)
