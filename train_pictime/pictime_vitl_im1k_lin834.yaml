@@ -138,5 +138,19 @@ evaluation:
     high_freq: benchmark_high_frequency.yaml
     low_freq: benchmark_low_frequency.yaml
 checkpointing:
-  period: 1000 #save a checkpoint every this many iterations; 0 disables
-  max_to_keep: 3 #how many checkpoints to keep; older ones will be deleted
+  period: 250 #save a checkpoint every this many iterations; 0 disables
+  max_to_keep: 1 #how many checkpoints to keep; older ones will be deleted
+
+# --- Face blur (Trial: face-masked pretrain) ---
+# When enabled: Gaussian-blur every face region inside each pretrain crop.
+# Forces the SSL backbone to learn body features (clothing, build, posture)
+# rather than face features. Downstream finetune/eval is never blurred — the
+# pretrain-time blur reshapes the backbone so eval-time non-blurred faces no
+# longer dominate. Adaptive blur radius = sigma_factor * min(face_w_px, face_h_px)
+# in the crop's pixel coords (before DataAugmentationDINO multi-crop), so the
+# blur is invariant to image resolution and survives all downstream resize/crop.
+# Requires per-project faces.json next to bbox_images/ (same schema as finetune).
+face_blur:
+  enabled: false
+  sigma_factor: 0.3
+  faces_filename: "faces.json"

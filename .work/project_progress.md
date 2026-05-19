@@ -786,3 +786,99 @@ on the third pass.
   - Trial 2 `experiment.md` write-up — n_blocks=2/12 slices not yet read
   - Pink V13 missing ckpts root cause (deferred from 2026-05-06)
   - `BestCheckpointTracker` metric switch (full-tier vs tier-50 silhouette)
+
+## 2026-05-19 — Face-blur configurability at pretrain stage shipped
+
+### Diagnosis: V11 backbone is too face-dependent for finetune to wash out
+
+Trial 3 (finetune face-blur, shipped 2026-05-18) gave the same eval as the
+unblurred baseline. Hypothesis: the V11 continued-pretrain backbone already
+encodes face features strongly, and ~10 epochs of finetune (~1.5h,
+`lr_backbone=1e-4` on 6 blocks) doesn't have the capacity to reshape that.
+Fix: re-shape the backbone at PRETRAIN time by blurring faces in the SSL
+training images.
+
+### Code shipped — pretrain face-blur, mirrors the finetune config pattern
+
+- **`train_pictime/pictime_dataset.py`** — added module-level
+  `_build_face_lookup_from_paths(image_paths, faces_filename)` that dedupes
+  `Path(p).parent.parent` to find unique project dirs and loads each
+  `<project_dir>/<faces_filename>`. Returns `dict[(project_id, filename),
+  list[(x1,y1,x2,y2)]]` — same key shape as finetune's lookup so the same
+  `apply_face_blur` consumes it identically. `PicTimeImageDataset.__init__`
+  gained 3 kwargs (`face_blur_enabled`, `face_blur_sigma_factor`,
+  `face_blur_faces_filename`); lookup built only when enabled, with
+  `[face_blur] Loaded N/M projects ...` log line matching finetune.
+  `__getitem__` calls `apply_face_blur(img, (0,0,1,1), faces, img.size,
+  sigma_factor)` between `Image.open` and the transform call. Imports
+  `apply_face_blur` directly from `train_pictime.finetune.reid_dataset`.
+- **`train_pictime/pictime_vitl_im1k_lin834.yaml`** — new top-level
+  `face_blur:` block (`enabled: false / sigma_factor: 0.3 /
+  faces_filename: "faces.json"`). Zero regression on vanilla runs.
+- **`train_pictime/train_dino_grad_accum.py`** — `build_data_loader` reads
+  `cfg.get("face_blur", None)` (mirrors finetune pattern at
+  `finetune_reid.py:310-313`), threads three kwargs through to
+  `PicTimeImageDataset(...)` (column-aligned per feedback rule).
+- **`train_pictime/train_dino.py`** — sister-script wiring (per
+  `feedback_fix_sister_scripts.md`).
+- **`train_pictime/debug_face_blur_pretrain.py`** (NEW) — builds dataset
+  with face_blur on (no transform), reverse-indexes face-bearing samples
+  from `dataset.face_lookup`, shows 16 in 4x4 plt grid for eyeball
+  verification.
+
+### Plan-review iteration
+
+Initial plan proposed extracting `apply_face_blur` to
+`train_pictime/utils_pictime/face_blur.py` (shared module) per
+`feedback_fix_sister_scripts.md`. Tomer pushed back on first ExitPlanMode:
+"just import it from its current location." Plan revised: pretrain imports
+directly from `train_pictime.finetune.reid_dataset`. Result is one less
+file, slightly unusual cross-module dependency (pretrain → finetune) but
+simpler diff. Lesson noted: when the existing helper is already in the
+right shape, don't move it just because the rule says
+shared-module-preferred — import is fine.
+
+### Hook-point rationale
+
+`PicTimeImageDataset.__getitem__` between `Image.open` and the transform
+call is the natural spot because:
+- It runs on the FULL pretrain image (each
+  `<project>/bbox_images/<name>.jpg`) before `DataAugmentationDINO`
+  multi-crops it.
+- The blur in original-pixel coords survives downstream RandomResizedCrop +
+  Resize + per-crop transforms (just like the finetune blur survives the
+  Resize(256)+CenterCrop(224) pipeline).
+- `apply_face_blur(img, (0,0,1,1), faces, img.size, sigma_factor)` makes
+  the function's offset math a no-op (bx1_px=0, by1_px=0) — faces scale
+  directly to image pixel dims.
+
+### Prerequisites (out of scope but blocks V12 launch)
+
+- **faces.json for pretrain image set**: doesn't exist yet. The 6.5M
+  pretrain images live as flat paths in `train_paths.txt`; each path has
+  the structure `<project_dir>/bbox_images/<name>.jpg`. Tomer kicked off
+  yolov11l-face detection on the VM today; expected runtime 3-7 days.
+- **Coord-system assumption (must verify once detection finishes)**: face
+  bboxes in `faces.json` MUST be normalized [0,1] to the
+  `bbox_images/<name>.jpg` crop, NOT the original Pictime full-frame.
+  If detection outputs full-frame coords, the blur math will land on the
+  wrong region. Open one `faces.json` + matching crop and eyeball before
+  enabling the flag.
+
+### Scheduled reminder
+
+Created `claude.ai/code/routines/trig_011rzNLsknD1VPv67XtUdWRC` to fire on
+Sun May 24, 2026, noon Jerusalem (UTC 9:00). Prompt covers: check
+detection completion, coord-system sanity check, run
+`debug_face_blur_pretrain.py`, flip `face_blur.enabled: true`, smoke
+test (~500 iters), launch V12 from LVD-142M with blur on, downstream
+Trial 3 rerun on V12/ckpt/~13000 vs V11/ckpt/13000.
+
+### Open
+
+- Awaiting face-detection on 6.5M pretrain images (3-7 days). V12 launch
+  blocks on this + coord-system verification.
+- Carried forward (still): Wedding[1] HTML viewer eyeball + Portraits
+  viewer rebuild (from 2026-05-12), Trial 2 `experiment.md` write-up
+  (n_blocks=2/12 slices), pink V13 missing ckpts root cause,
+  `BestCheckpointTracker` metric switch (full-tier vs tier-50 silhouette).

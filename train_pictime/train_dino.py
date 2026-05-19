@@ -155,7 +155,19 @@ def build_data_loader(cfg, model, train_list: str, start_iter: int = 0):
                         )
 
     aug = model.build_data_augmentation_dino(cfg)
-    dataset = PicTimeImageDataset(file_images_paths=train_list, transform=aug)
+
+    # Face-blur config — mirrors the finetune pattern. Missing block = disabled.
+    face_blur_cfg = cfg.get("face_blur", None)
+    face_blur_enabled = bool(face_blur_cfg and face_blur_cfg.get("enabled", False))
+    face_blur_sigma_factor = (float(face_blur_cfg.sigma_factor) if face_blur_enabled else 0.3)
+    face_blur_faces_filename = (str(face_blur_cfg.faces_filename) if face_blur_enabled else "faces.json")
+
+    dataset = PicTimeImageDataset(file_images_paths=train_list,
+                                  transform=aug,
+                                  face_blur_enabled=face_blur_enabled,
+                                  face_blur_sigma_factor=face_blur_sigma_factor,
+                                  face_blur_faces_filename=face_blur_faces_filename,
+                                 )
 
     # infinite sampler (so we can run N iterations without worrying about epoch end)
     data_loader = make_data_loader(
