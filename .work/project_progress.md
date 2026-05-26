@@ -882,3 +882,106 @@ Trial 3 rerun on V12/ckpt/~13000 vs V11/ckpt/13000.
   viewer rebuild (from 2026-05-12), Trial 2 `experiment.md` write-up
   (n_blocks=2/12 slices), pink V13 missing ckpts root cause,
   `BestCheckpointTracker` metric switch (full-tier vs tier-50 silhouette).
+
+## 2026-05-26 — V12 launch, face-blur pretrain running, fracturing eval shipped
+
+### V12 face-masked pretrain launched (after NVML reload + crash recover)
+
+After ~5 days of yolov11l-face detection running on the VM, the faces.json
+files landed. Pre-launch eyeball confirmed coord-system was right
+(crop-local normalized [0,1] bboxes against `bbox_images/<name>.jpg`);
+debug viz showed faces blurred cleanly.
+
+First launch crashed in `setup_job` → `dist.barrier()` with
+`nvmlInit_v2() failed: Driver/library version mismatch` (NVML lib version
+580.159) — classic kernel-module-vs-userspace-libs skew, almost certainly
+from an unattended-upgrade landing on the VM at some point. Step-by-step
+`rmmod nvidia_uvm/drm/modeset/nvidia` → `modprobe nvidia + nvidia_uvm`
+reloaded the new driver in-place (no reboot needed). Module size confirmed
+the swap: `nvidia.ko` went from 104,136,704 → 104,165,376 bytes. V12
+relaunched, training started from foundation init + face_blur enabled.
+
+### V12 training crash + resume (iter 1988 → resume from ckpt 1750)
+
+Training halted at iter ~1988 (cause not investigated). Flipped
+`train_dino_grad_accum.py:223 resume=False → True`, relaunched.
+`use_latest_version_dir(args)` picked V12, foundation loader skipped
+correctly (ckpt has the weights), W&B run resumed via persisted
+`wandb_run_id.txt`. Tomer also dropped `eval_period_iterations: 12500 →
+500` in the yaml so first eval signal lands quickly after resume.
+
+### W&B "Crashed" badge with training still alive
+
+After resume, W&B run showed "Crashed" while GPU was clearly busy and
+stdout iter counter kept advancing. Diagnosed as wandb-client disconnect
+(heartbeat stopped, training thread kept running independently). Not
+caused by the fracturing eval running concurrently — GPU contention
+causes CUDA OOM, not silent W&B sync drop.
+
+Decision: Option A — let training continue (ckpts save to disk every 250
+iters, stdout log captures losses + eval prints). Plan on next ckpt save
+(iter 2000): kill + rename `wandb_run_id.txt → .crashed-backup` to force
+a fresh W&B run on relaunch (avoids wandb's flaky re-attach-to-crashed-run
+behavior).
+
+Throughput: ~77 sec/iter, on par with V11 — face-blur isn't a meaningful
+regression. The "duplicate iter 1992" tqdm output Tomer flagged was just
+a mid-iter display refresh, not a stuck loop.
+
+Loss at iter ~1992 was ~16.55 vs V11's roughly 10-12 baseline. Could be
+face-blur making the SSL task harder (expected) or a resume artifact.
+Open until iter 2500's first eval.
+
+### Fracturing eval shipped — `train_pictime/finetune/fracturing_eval/`
+
+New eval pipeline: for each ground-truth identity in a held-out gallery,
+measure how many predicted sub-clusters the model splits it into, plus
+the size distribution.
+
+Design locked via 5-question intake: held-out IDs = parameter; drop
+predicted `-1` crops; drop GT `-1` entries; `MIN_GT_CLUSTER_SIZE = 5`;
+lives at `train_pictime/finetune/fracturing_eval/`.
+
+Files shipped:
+- `config.py` — imports `FINETUNE_VERSION_DIR` + HDBSCAN params from
+  `realworld_eval/config.py` (single source of truth for V<n>); adds
+  `HELD_OUT_PROJECTS_FILE`
+  (`/data/AI/Tomer/dinov3/train_pictime/finetune/fracturing_eval/approved_projects.json`),
+  `DATASET_ROOT` (Portraits[26]), `MIN_GT_CLUSTER_SIZE=5`.
+- `run_fracturing_eval.py` — embed → HDBSCAN → per-GT-cluster fracturing
+  math → `summary.json`. Reuses `embed_project` + `crop_bbox` +
+  `cluster_embeddings_hdbscan` from `realworld_eval/cluster_test_set.py`.
+  Embeds ACTIVE crops only (the subset surviving filters), so HDBSCAN
+  density isn't polluted by noise/tiny-cluster crops.
+- `plot.py` — Plot 1 (fracturing histogram, `0` bucket for all-noise GT
+  clusters, "12+" tail cap), Plot 2 (per-rank sub-cluster % violins,
+  median lines, drops ranks with `n<5`).
+- `__init__.py` — empty.
+
+After Tomer asked, added the plot calls into `run_fracturing_eval.py`'s
+`main()` so one command runs the full pipeline. `plot.py` stays
+standalone for re-plotting from `summary.json` without re-running
+embeddings.
+
+### Plot interpretation gotcha (worth remembering)
+
+Plot 2's `n at rank r` = GT clusters with `fracturing_count >= r`
+(cumulative), NOT clusters with fracturing exactly `r`. Means rank-1's
+violin is heavily dominated by the perfectly-grouped clusters (always at
+100%). Sanity check: `n at rank 1 == sum of Plot 1's bars for x>=1`.
+
+If the perfect-cluster mass at 100% makes rank-1 hard to read in future
+runs, we can change the plot to exclude `fracturing_count == 1` from
+rank-1's violin — flagged, not changed yet.
+
+### Open / carried forward
+
+- V12 training: relaunch with fresh W&B run after next ckpt (iter 2000)
+  saves. First real eval at iter 2500.
+- Loss ~16.5 vs V11 baseline 10-12 — interpret after first eval lands.
+- May 24 reminder routine `trig_011rzNLsknD1VPv67XtUdWRC` is stale and
+  can be deleted at https://claude.ai/code/routines.
+- Carried forward (still): Wedding[1] HTML viewer eyeball + Portraits
+  viewer rebuild (from 2026-05-12), Trial 2 `experiment.md` write-up,
+  pink V13 missing ckpts root cause, `BestCheckpointTracker` metric
+  switch.

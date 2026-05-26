@@ -220,7 +220,7 @@ def main():
         output_dir="/data/AI/Tomer/dinov3/train_pictime/experiments",
         train_list="/data/AI/Tomer/dinov3/train_pictime/train_paths.txt",
         pretrained="/data/AI/Tomer/dinov3/dinov3/weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
-        resume=False,  # flip to True to resume from latest V-dir
+        resume=True,  # flip to True to resume from latest V-dir
     )
     if args.resume:
         args = use_latest_version_dir(args)

@@ -132,7 +132,7 @@ crops:
   share_color_jitter: false
   horizontal_flips: true
 evaluation:
-  eval_period_iterations: 12500
+  eval_period_iterations: 500
   low_freq_every: 5
   config_files:
     high_freq: benchmark_high_frequency.yaml
@@ -151,6 +151,6 @@ checkpointing:
 # blur is invariant to image resolution and survives all downstream resize/crop.
 # Requires per-project faces.json next to bbox_images/ (same schema as finetune).
 face_blur:
-  enabled: false
+  enabled: true
   sigma_factor: 0.3
   faces_filename: "faces.json"
