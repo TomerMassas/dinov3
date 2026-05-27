@@ -73,42 +73,39 @@ def build_model(cfg):
     return model
 
 def build_schedulers(cfg):
-    OFFICIAL_EPOCH_LENGTH = cfg.train.OFFICIAL_EPOCH_LENGTH
+    # Iter-native schedule: durations read directly from config (no epoch->iter scaling).
+    # Mirrors train_dino_grad_accum.py. total_iters == max_iters (= cfg.optim.total_iters).
+    total_iters          = cfg.optim.total_iters
+    warmup_iters         = cfg.optim.warmup_iters
+    teacher_warmup_iters = cfg.teacher.warmup_teacher_temp_iters
+    freeze_iters         = cfg.optim.freeze_last_layer_iters
 
     teacher_temp = dict(
         base_value=cfg.teacher["teacher_temp"],
         final_value=cfg.teacher["teacher_temp"],
-        total_iters=cfg.teacher["warmup_teacher_temp_epochs"] * OFFICIAL_EPOCH_LENGTH,
-        warmup_iters=cfg.teacher["warmup_teacher_temp_epochs"] * OFFICIAL_EPOCH_LENGTH,
+        total_iters=teacher_warmup_iters,
+        warmup_iters=teacher_warmup_iters,
         start_warmup_value=cfg.teacher["warmup_teacher_temp"],
     )
-    teacher_temp_schedule = CosineScheduler(**teacher_temp)
     lr = dict(
         base_value=cfg.optim.lr,
         final_value=cfg.optim.min_lr,
-        total_iters=cfg.optim.epochs * OFFICIAL_EPOCH_LENGTH,
-        warmup_iters=cfg.optim.warmup_epochs * OFFICIAL_EPOCH_LENGTH,
+        total_iters=total_iters,
+        warmup_iters=warmup_iters,
         start_warmup_value=0,
         trunc_extra=cfg.optim.schedule_trunc_extra,
     )
     wd = dict(
         base_value=cfg.optim.weight_decay,
         final_value=cfg.optim.weight_decay_end,
-        total_iters=cfg.optim.epochs * OFFICIAL_EPOCH_LENGTH,
+        total_iters=total_iters,
         trunc_extra=cfg.optim.schedule_trunc_extra,
     )
     momentum = dict(
         base_value=cfg.teacher.momentum_teacher,
         final_value=cfg.teacher.final_momentum_teacher,
-        total_iters=cfg.optim.epochs * OFFICIAL_EPOCH_LENGTH,
+        total_iters=total_iters,
         trunc_extra=cfg.optim.schedule_trunc_extra,
-    )
-    teacher_temp = dict(
-        base_value=cfg.teacher["teacher_temp"],
-        final_value=cfg.teacher["teacher_temp"],
-        total_iters=cfg.teacher["warmup_teacher_temp_epochs"] * OFFICIAL_EPOCH_LENGTH,
-        warmup_iters=cfg.teacher["warmup_teacher_temp_epochs"] * OFFICIAL_EPOCH_LENGTH,
-        start_warmup_value=cfg.teacher["warmup_teacher_temp"],
     )
 
     lr_schedule = CosineScheduler(**lr)
@@ -116,9 +113,8 @@ def build_schedulers(cfg):
     mom_schedule = CosineScheduler(**momentum)
     teacher_temp_schedule = CosineScheduler(**teacher_temp)
 
-    # last-layer schedule = lr schedule, but frozen for N epochs
+    # last-layer schedule = lr schedule, but frozen (lr=0) for the first freeze_iters
     last_layer_lr_schedule = CosineScheduler(**lr)
-    freeze_iters = cfg.optim.freeze_last_layer_epochs * OFFICIAL_EPOCH_LENGTH
     last_layer_lr_schedule.schedule[:freeze_iters] = 0
 
     return lr_schedule, wd_schedule, mom_schedule, teacher_temp_schedule, last_layer_lr_schedule
@@ -243,9 +239,8 @@ def main():
     optimizer = torch.optim.AdamW(model.get_params_groups(), betas=(cfg.optim.adamw_beta1, cfg.optim.adamw_beta2))
     lr_s, wd_s, mom_s, ttemp_s, lastlr_s = build_schedulers(cfg)
 
-    # Run just 10 iters for now
-    # TODO currently max_iters=100*1250*4=500K, later i should increase it from the yaml (to avoid scheduler crashing) to cover more of the dataset
-    max_iters = cfg.optim.epochs * cfg.train.OFFICIAL_EPOCH_LENGTH * cfg.train.batch_size_per_gpu
+    # max_iters = total optimizer updates = schedule span, taken directly from config.
+    max_iters = cfg.optim.total_iters
 
     # Progress bar with nohup-friendly settings
     # mininterval: minimum time between updates (seconds) to avoid excessive logging

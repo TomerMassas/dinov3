@@ -89,7 +89,7 @@ teacher:
   final_momentum_teacher: 1
   warmup_teacher_temp: 0.04
   teacher_temp: 0.07
-  warmup_teacher_temp_epochs: 30
+  warmup_teacher_temp_iters: 2000   # teacher temp ramps 0.04 -> 0.07 over this many iters, then holds (was warmup_teacher_temp_epochs: 30)
   in_chans: 3
 distillation:
   enabled: false
@@ -101,16 +101,23 @@ hrft:
   enabled: false
   checkpoint_path: ''
 optim:
-  epochs: 100
+  # Schedule durations are in ITERATIONS (optimizer steps), NOT epochs.
+  # The old epoch knobs were a trap: OFFICIAL_EPOCH_LENGTH is a nominal unit
+  # (not a real pass over the data), and the epoch->iter scaling tied the
+  # schedule length to batch size. build_schedulers reads these iter fields
+  # directly; main() sets max_iters = total_iters.
+  total_iters: 20000             # total optimizer steps (schedule span). Bump if not converged.
+  warmup_iters: 1000             # linear LR warmup 0 -> lr over this many iters
+  freeze_last_layer_iters: 200   # DINO-head last layer frozen (lr=0) for the first N iters
   optimizer: adamw
   weight_decay: 0.04
   weight_decay_end: 0.4
-  lr: 0.001
-  warmup_epochs: 10
+  lr: 1.0e-4                     # TRUE peak LR. scaling_rule is "" below, so this is used as-is (batch-independent).
   min_lr: 1.0e-06
   clip_grad: 3.0
-  freeze_last_layer_epochs: 1
-  scaling_rule: sqrt_wrt_1024
+  scaling_rule: ""               # DISABLED (was sqrt_wrt_1024). That rule silently multiplied lr by
+                                 # 4*sqrt(batch_size_per_gpu*world/1024): made lr=0.001 -> 5e-4 at bs=16,
+                                 # and would shift lr 2.8x at bs=128. "" => lr is literal, batch-independent.
   patch_embed_lr_mult: 0.2
   dino_head_wd_multiplier: 1.0
   layerwise_decay: 0.9
@@ -132,7 +139,7 @@ crops:
   share_color_jitter: false
   horizontal_flips: true
 evaluation:
-  eval_period_iterations: 500
+  eval_period_iterations: 1000
   low_freq_every: 5
   config_files:
     high_freq: benchmark_high_frequency.yaml

@@ -1,0 +1,38 @@
+# ============================================================================
+# A100 CONTROL PANEL  (merged over pictime_vitl_im1k_lin834.yaml when a100=True)
+# ============================================================================
+# This file is merged on top of the base config via OmegaConf.merge() in
+# train_dino_grad_accum.py when args.a100=True. Merge is a DEEP merge: every key
+# below OVERRIDES the base; base keys not listed here are untouched.
+#
+# ⚠ TWO SOURCES OF TRUTH: the experiment knobs below are intentionally duplicated
+#   from the base config so you have ONE compact file to eyeball/tweak. The cost:
+#   when a100=True, THESE WIN. If you change a value in the base config and forget
+#   it's also here, your base edit is silently ignored. RULE: when running on the
+#   A100, edit values HERE, not in the base. (When a100=False, this file is ignored
+#   entirely and the base config is authoritative.)
+# ============================================================================
+
+# --- Hardware (the only true A100-vs-T4 deltas) ---
+train:
+  batch_size_per_gpu: 128   # A100-80GB start (T4 ran 16). OOM -> 96/64; headroom -> 192/256. Watch nvidia-smi.
+  num_workers: 20           # 24-core EPYC (nproc=24), leaving ~4 for main/eval. Multi-crop aug + face_blur are CPU-heavy; push to 22 if GPU util still starves.
+
+# --- Schedule (iterations = optimizer steps) ---
+optim:
+  total_iters: 20000             # total run length / LR-cosine span. Bump if not converged.
+  warmup_iters: 1000             # linear LR warmup 0 -> lr
+  freeze_last_layer_iters: 200   # DINO-head last layer frozen (lr=0) for first N iters, then trains normally
+  lr: 1.0e-4                     # TRUE peak LR (scaling_rule is "" in base, so literal & batch-independent)
+  min_lr: 1.0e-6                 # cosine floor
+
+# --- Face blur (face-masked pretrain trial) ---
+face_blur:
+  enabled: true
+  sigma_factor: 0.3
+
+# --- Checkpoint / eval cadence (optimizer steps) ---
+checkpointing:
+  period: 250                # save a ckpt every N iters (max_to_keep stays from base)
+evaluation:
+  eval_period_iterations: 1000   # run eval every N iters

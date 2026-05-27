@@ -9,6 +9,7 @@ import sys
 from types import SimpleNamespace
 from pathlib import Path
 from tqdm import tqdm
+from omegaconf import OmegaConf
 
 from dinov3.configs import setup_config, setup_job
 from dinov3.configs.config import DinoV3SetupArgs
@@ -73,22 +74,15 @@ def build_model(cfg):
     return model
 
 
-# NOTE (Modified): Added total_iters argument.
-# We must pass the EXACT number of optimizer updates from main() to here.
-# Previously, this function used a default calculation that was ~16x shorter than the actual training loop,
-# causing the LR to hit 0 early and degrade metrics.
-def build_schedulers(cfg, total_iters):
-    OFFICIAL_EPOCH_LENGTH = cfg.train.OFFICIAL_EPOCH_LENGTH
-
-    # NOTE: Calculate scaling factor to adjust warmup/freeze periods proportionally.
-    # Config defines warmup in 'epochs' relative to OFFICIAL_EPOCH_LENGTH.
-    # Since our total_iters is much larger (due to infinite dataset logic), we scale warmup to match.
-    default_iters = cfg.optim.epochs * OFFICIAL_EPOCH_LENGTH
-    scale_factor = total_iters / default_iters if default_iters > 0 else 1.0
-
-    warmup_iters = int(cfg.optim.warmup_epochs * OFFICIAL_EPOCH_LENGTH * scale_factor)
-    teacher_warmup_iters = int(cfg.teacher["warmup_teacher_temp_epochs"] * OFFICIAL_EPOCH_LENGTH * scale_factor)
-    freeze_iters = int(cfg.optim.freeze_last_layer_epochs * OFFICIAL_EPOCH_LENGTH * scale_factor)
+# Schedule durations are read directly in ITERATIONS from the config (no epoch->iter
+# scaling). total_iters == max_iters (set in main from cfg.optim.total_iters), so the LR
+# cosine spans the whole run and warmup/freeze/teacher-temp are explicit and
+# batch-independent. (Replaces the old epoch-based + scale_factor scheme.)
+def build_schedulers(cfg):
+    total_iters          = cfg.optim.total_iters
+    warmup_iters         = cfg.optim.warmup_iters
+    teacher_warmup_iters = cfg.teacher.warmup_teacher_temp_iters
+    freeze_iters         = cfg.optim.freeze_last_layer_iters
 
     teacher_temp = dict(
         base_value=cfg.teacher["teacher_temp"],
@@ -221,6 +215,7 @@ def main():
         train_list="/data/AI/Tomer/dinov3/train_pictime/train_paths.txt",
         pretrained="/data/AI/Tomer/dinov3/dinov3/weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
         resume=True,  # flip to True to resume from latest V-dir
+        a100=False,   # flip to True on the A100 VM to merge pictime_a100_overrides.yaml (bigger batch + workers)
     )
     if args.resume:
         args = use_latest_version_dir(args)
@@ -230,11 +225,19 @@ def main():
     setup_args = DinoV3SetupArgs(config_file=args.config_file, output_dir=args.output_dir, opts=[])
     cfg = setup_config(setup_args, strict_cfg=False)
 
+    # A100 hardware overrides: merge ONLY the batch/worker deltas on top of the base config.
+    # Safe after setup_config because LR scaling is disabled (scaling_rule: ""), so changing
+    # batch_size_per_gpu here no longer affects the learning rate.
+    if args.a100:
+        a100_cfg = OmegaConf.load(str(REPO_ROOT / "train_pictime/pictime_a100_overrides.yaml"))
+        cfg = OmegaConf.merge(cfg, a100_cfg)
+        print("[A100 mode] merged overrides:", OmegaConf.to_container(a100_cfg))
+
     cfg.train.output_dir = args.output_dir
     cfg.student.pretrained_weights = args.pretrained
 
     target_batch_size = 1024  # also used below for grad accumulation
-    run_name = make_run_name(cfg, effective_bs=target_batch_size)
+    run_name = make_run_name(cfg, prefix="person_reid_face_masked",effective_bs=target_batch_size)
     print("Run name:", run_name)
 
     # W&B: resume existing run or start new one
@@ -271,12 +274,10 @@ def main():
     # Calculate how many forward/backwards per optimizer step
     accum_steps = max(1, target_batch_size // gpu_batch_size)
 
-    # NOTE: Recalculate max_iters (Optimizer Updates).
-    # Original logic: epochs * official_len * gpu_batch_size (huge number).
-    # New logic:      Same huge number of images seen, but divided by accum_steps,
-    #                 because we only step the optimizer once every 'accum_steps' samples.
-    # This keeps the total training time roughly the same but stabilizes gradients.
-    max_iters = (cfg.optim.epochs * cfg.train.OFFICIAL_EPOCH_LENGTH * cfg.train.batch_size_per_gpu) // accum_steps
+    # max_iters = total optimizer updates = the schedule span, taken DIRECTLY from config
+    # (no batch-size dependence). accum_steps only controls how each effective (target)
+    # batch is assembled into microbatches; it does NOT change the number of optimizer steps.
+    max_iters = cfg.optim.total_iters
 
     print(f"--- Option A Config ---")
     print(f"Physical GPU Batch Size: {gpu_batch_size}")
@@ -303,8 +304,8 @@ def main():
     data_loader = build_data_loader(cfg, model, train_list=args.train_list, start_iter=start_iter * accum_steps)
     it_data = iter(data_loader)
 
-    # NOTE: Pass max_iters to build_schedulers to ensure LR decay is spread over the WHOLE training run.
-    lr_s, wd_s, mom_s, ttemp_s, lastlr_s = build_schedulers(cfg, total_iters=max_iters)
+    # Schedules read their durations (total_iters / warmup_iters / etc.) directly from cfg.
+    lr_s, wd_s, mom_s, ttemp_s, lastlr_s = build_schedulers(cfg)
 
     pbar = tqdm(
         total=max_iters,

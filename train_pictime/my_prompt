@@ -14,4 +14,5 @@ TRIALS:
 
 
 
-
+1. the freeze_last_layer_iters: param means, that after 200 iters we unfreeze?
+2. add to the a100 config, all the interesting params (although it is duplicated) to it is easier to see and change, in the base config it is soo many it is easy to miss eyeballing
