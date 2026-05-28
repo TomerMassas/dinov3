@@ -2,6 +2,12 @@
 # gives 82.2 im1k-knn, 83.3 im1k-linear
 # runs with a total batch size of 2048 (64/gpu, 4 nodes here)
 # runs at 0.57s/iter
+
+# W&B run-name prefix (first segment, e.g. "person_reid_face_masked_vits16_effbs1024_lr0.0001").
+# Change here to switch experiments. Also duplicated in pictime_a100_overrides.yaml (the
+# override wins when a100=True).
+run_name_prefix: "face_blur"
+
 MODEL:
   META_ARCHITECTURE: SSLMetaArch
   DEVICE: cuda

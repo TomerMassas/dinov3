@@ -38,7 +38,7 @@ def init_wandb(cfg,
 
     from omegaconf import OmegaConf
 
-    project = project or os.environ.get("WANDB_PROJECT", "person-reid-dinov3")
+    project = project or os.environ.get("WANDB_PROJECT", "person-reid-dinov3-V2")
     entity = os.environ.get("WANDB_ENTITY", None)
 
     resume_kwargs = {}

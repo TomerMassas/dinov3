@@ -13,6 +13,9 @@
 #   entirely and the base config is authoritative.)
 # ============================================================================
 
+# --- Run identity (W&B run name) ---
+run_name_prefix: "face_blur"   # first segment of run name. Change per experiment.
+
 # --- Hardware (the only true A100-vs-T4 deltas) ---
 train:
   batch_size_per_gpu: 128   # A100-80GB start (T4 ran 16). OOM -> 96/64; headroom -> 192/256. Watch nvidia-smi.

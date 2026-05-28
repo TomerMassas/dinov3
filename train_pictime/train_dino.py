@@ -215,7 +215,7 @@ def main():
     cfg.train.output_dir = args.output_dir
     cfg.student.pretrained_weights = args.pretrained
 
-    run_name = make_run_name(cfg)
+    run_name = make_run_name(cfg, prefix=cfg.run_name_prefix)
     print("Run name:", run_name)
     print("train.output_dir:", cfg.train.output_dir)
     print("student.pretrained_weights:", cfg.student.pretrained_weights)

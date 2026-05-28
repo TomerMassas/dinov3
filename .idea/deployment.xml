@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="azureuser@10.0.32.13:22 password (3)" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="pictime@20.245.252.102:22 key" remoteFilesAllowedToDisappearOnAutoupload="false" confirmBeforeUploading="false">
     <option name="confirmBeforeUploading" value="false" />
     <serverData>
       <paths name="azureuser@10.0.32.13:22 password">
@@ -37,6 +37,17 @@
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
+        </serverdata>
+      </paths>
+      <paths name="pictime@20.245.252.102:22 key">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/dinov3" local="$PROJECT_DIR$" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/dinov3/weights" />
+            <excludedPath local="true" path="$PROJECT_DIR$/.claude" />
+          </excludedPaths>
         </serverdata>
       </paths>
       <paths name="pictimegpu@172.173.222.155:22 password (2)">

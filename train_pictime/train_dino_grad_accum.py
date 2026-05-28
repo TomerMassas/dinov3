@@ -237,7 +237,7 @@ def main():
     cfg.student.pretrained_weights = args.pretrained
 
     target_batch_size = 1024  # also used below for grad accumulation
-    run_name = make_run_name(cfg, prefix="person_reid_face_masked",effective_bs=target_batch_size)
+    run_name = make_run_name(cfg, prefix=cfg.run_name_prefix, effective_bs=target_batch_size)
     print("Run name:", run_name)
 
     # W&B: resume existing run or start new one
