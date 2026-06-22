@@ -151,7 +151,7 @@ evaluation:
     high_freq: benchmark_high_frequency.yaml
     low_freq: benchmark_low_frequency.yaml
 checkpointing:
-  period: 250 #save a checkpoint every this many iterations; 0 disables
+  period: 249 #save a checkpoint every this many iterations; 0 disables
   max_to_keep: 1 #how many checkpoints to keep; older ones will be deleted
 
 # --- Face blur (Trial: face-masked pretrain) ---

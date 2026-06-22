@@ -103,21 +103,15 @@ def crop_bbox(img_pil, bbox_normalized):
     return img_pil.crop((px1, py1, px2, py2))
 
 
-def count_total_bboxes(detections):
-    """Count total number of bboxes across all images in a detections dict."""
-    return sum(len(dets) for dets in detections.values())
+def should_skip_project(project_dir):
+    """Skip if the embeddings file already exists.
 
-
-def should_skip_project(project_dir, detections):
-    """Skip if embeddings.npz exists and has the same number of entries as total bboxes."""
-    embeddings_path = os.path.join(project_dir, EMBEDDINGS_FILENAME)
-    if not os.path.exists(embeddings_path):
-        return False
-    try:
-        data = np.load(embeddings_path)
-        return len(data["embeddings"]) == count_total_bboxes(detections)
-    except Exception:
-        return False
+    Existence-only ON PURPOSE: the old count-comparison (len(embeddings) == total
+    bboxes) re-processed any project containing an invalid crop (too small / missing
+    image / PIL failure) on EVERY run, because invalid crops never produce embedding
+    rows. Saves are atomic (save_project), so an existing file is always complete.
+    """
+    return os.path.exists(os.path.join(project_dir, EMBEDDINGS_FILENAME))
 
 
 class CropDataset(Dataset):
@@ -166,18 +160,22 @@ def save_project(project_dir, filenames, bbox_indices, embeddings):
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 DETECTIONS_FILENAME = "detections.json"
 
-MODEL_SOURCE = "v11_ckpt13k"  # "foundation_b16" | "v11_ckpt13k"
+MODEL_SOURCE = "v17_ckpt19750"  # "foundation_b16" | "v11_ckpt13k" | "v17_ckpt19750"
 
 # Maps each backbone source to its output filename — NEVER use a ternary here.
 # Adding a new backbone? Add a row.
 EMBEDDINGS_FILENAME_BY_MODEL = {
     "foundation_b16": "embeddings.npz",
     "v11_ckpt13k":    "embeddings_v2.npz",
+    "v17_ckpt19750":  "embeddings_v3.npz",
 }
 EMBEDDINGS_FILENAME = EMBEDDINGS_FILENAME_BY_MODEL[MODEL_SOURCE]
 
-# Paths used only when MODEL_SOURCE == "v11_ckpt13k"
-V11_CKPT_PATH = "/data/AI/Tomer/dinov3/train_pictime/experiments/V11/ckpt/13000"
+# DCP checkpoint per backbone source (non-foundation sources load via load_backbone)
+DCP_CKPT_PATH_BY_MODEL = {
+    "v11_ckpt13k":   "/data/AI/Tomer/dinov3/train_pictime/experiments/V11/ckpt/13000",
+    "v17_ckpt19750": "/data/AI/Tomer/dinov3/train_pictime/experiments_V2/V17/ckpt/19750",
+}
 PRETRAIN_CFG_PATH = str(Path(__file__).resolve().parents[1] / "train_pictime" / "pictime_vitl_im1k_lin834.yaml")
 
 MAX_BATCH_SIZE = 64
@@ -191,12 +189,13 @@ if __name__ == "__main__":
     if MODEL_SOURCE == "foundation_b16":
         print("Loading ViT-B/16 foundation model...")
         model = load_model(device=device)
-    elif MODEL_SOURCE == "v11_ckpt13k":
-        print("Loading V11 ViT-S/16 backbone (DCP)...")
+    elif MODEL_SOURCE in DCP_CKPT_PATH_BY_MODEL:
+        ckpt_path = DCP_CKPT_PATH_BY_MODEL[MODEL_SOURCE]
+        print(f"Loading {MODEL_SOURCE} ViT-S/16 backbone (DCP) from {ckpt_path} ...")
         setup_job(output_dir=None, seed=42)  # required for DCP load
-        model, embed_dim = load_backbone(PRETRAIN_CFG_PATH, V11_CKPT_PATH, which="teacher")
+        model, embed_dim = load_backbone(PRETRAIN_CFG_PATH, ckpt_path, which="teacher")
         model = model.eval().to(device)
-        print(f"V11 backbone loaded, embed_dim={embed_dim}")
+        print(f"{MODEL_SOURCE} backbone loaded, embed_dim={embed_dim}")
     else:
         raise ValueError(f"Unknown MODEL_SOURCE: {MODEL_SOURCE}")
 
@@ -215,11 +214,11 @@ if __name__ == "__main__":
         detections_path = os.path.join(project_dir, DETECTIONS_FILENAME)
         if not os.path.exists(detections_path):
             continue
-        with open(detections_path, 'r') as f:
-            detections = json.load(f)
-        if should_skip_project(project_dir, detections):
+        if should_skip_project(project_dir):
             total_skipped += 1
             continue
+        with open(detections_path, 'r') as f:
+            detections = json.load(f)
 
         start = len(entries)
         for img_name, dets in detections.items():

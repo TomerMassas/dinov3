@@ -49,6 +49,53 @@ def load_index(index_path: str | Path):
     )
 
 
+def load_store(store_path: str | Path, data_base_path: str | Path):
+    """Load the project-keyed store (reid_store.pkl, built by build_store.py)
+    and assemble the flat arrays the dataset/evaluator expect.
+
+    Unlike load_index, this also returns per-crop `distances` (centroid distances
+    carried in the store, so curriculum sorting needs no per-project file opens)
+    and the set of labeled project_ids (reviewer-trusted clusters_fixed).
+
+    Returns:
+        image_paths, bboxes, bbox_indices, project_ids, cluster_ids,
+        distances (float32 [N]), labeled_projects (set[str])
+    """
+    import pickle
+    import numpy as np
+
+    with open(store_path, "rb") as f:
+        store = pickle.load(f)
+
+    data_base = str(data_base_path)
+    image_paths, bboxes, bbox_indices, project_ids, cluster_ids, distances = [], [], [], [], [], []
+    labeled_projects: set[str] = set()
+
+    for pid, rec in store["projects"].items():
+        n = len(rec["filenames"])
+        if n == 0:
+            continue
+        if rec["labeled"]:
+            labeled_projects.add(str(pid))
+        for fn in rec["filenames"]:
+            image_paths.append(f"{data_base}/{pid}/images/{fn}")
+        project_ids.extend([str(pid)] * n)
+        bboxes.append(rec["bboxes"])
+        bbox_indices.append(rec["bbox_indices"])
+        cluster_ids.append(rec["cluster_ids"])
+        distances.append(rec["distances"])
+
+    return (
+        np.array(image_paths, dtype=object),
+        np.concatenate(bboxes) if bboxes else np.empty((0, 4), dtype=np.float32),
+        np.concatenate(bbox_indices) if bbox_indices else np.empty(0, dtype=np.int32),
+        np.array(project_ids, dtype=object),
+        np.concatenate(cluster_ids) if cluster_ids else np.empty(0, dtype=np.int32),
+        np.concatenate(distances) if distances else np.empty(0, dtype=np.float32),
+        labeled_projects,
+    )
+
+
 def load_project(project_dir: Path) -> list[ReIDSample]:
     """Load samples from a single project directory.
 
@@ -229,6 +276,8 @@ class ReIDCropDataset(Dataset):
                  transform=None,
                  min_k: int = 1,
                  centroid_distances_filename: str | None = None,
+                 sample_distances=None,
+                 labeled_projects=None,
                  face_blur_enabled: bool = False,
                  face_blur_sigma_factor: float = 0.3,
                  face_blur_faces_filename: str = "faces.json",
@@ -264,25 +313,45 @@ class ReIDCropDataset(Dataset):
         self.labels = labels
         self.transform = transform
 
+        # Bulk-convert to Python lists ONCE. The per-sample loops below would
+        # otherwise do numpy scalar indexing (labels[idx] / project_ids[idx]) per
+        # element — at N~5M that's minutes of Python↔numpy overhead. .tolist() is
+        # a single C call; iterating the lists is plain-Python fast.
+        labels_list = labels.tolist()
+        project_ids_list = [str(p) for p in project_ids]
+
         # Build lookups
         self.identity_to_indices: dict[int, list[int]] = defaultdict(list)
-        for idx in range(len(labels)):
-            self.identity_to_indices[int(labels[idx])].append(idx)
+        for idx, gid in enumerate(labels_list):
+            self.identity_to_indices[gid].append(idx)
 
         # Map project_id -> identity IDs that have >= min_k samples
         self.project_to_identities: dict[str, list[int]] = defaultdict(list)
         seen = set()
-        for idx in range(len(labels)):
-            gid = int(labels[idx])
+        for idx, gid in enumerate(labels_list):
             if gid not in seen and len(self.identity_to_indices[gid]) >= min_k:
-                self.project_to_identities[str(project_ids[idx])].append(gid)
+                self.project_to_identities[project_ids_list[idx]].append(gid)
                 seen.add(gid)
 
         # Projects that have at least 1 valid identity
         self.valid_projects = [p for p, ids in self.project_to_identities.items() if len(ids) > 0]
 
-        # Curriculum: per-identity dataset indices sorted by distance to centroid
-        if centroid_distances_filename is None:
+        # Labeled identities (from reviewer-trusted projects) — used by PKBatchSampler
+        # for per-project curriculum p (labeled -> p_labeled, else p_unlabeled).
+        self.labeled_identities: set[int] = set()
+        if labeled_projects is not None:
+            lp = set(str(x) for x in labeled_projects)
+            for idx, gid in enumerate(labels_list):
+                if project_ids_list[idx] in lp:
+                    self.labeled_identities.add(gid)
+
+        # Curriculum: per-identity dataset indices sorted by ascending centroid distance.
+        # Prefer in-memory `sample_distances` (from the store — no per-project file
+        # opens, fast init); else fall back to the per-project distances files
+        # (the evaluator path); else disabled.
+        if sample_distances is not None:
+            self.identity_to_sorted_indices = self._build_sorted_indices_from_distances(sample_distances)
+        elif centroid_distances_filename is None:
             self.identity_to_sorted_indices: dict[int, list[int]] | None = None
         else:
             self.identity_to_sorted_indices = self._build_sorted_indices(
@@ -305,6 +374,19 @@ class ReIDCropDataset(Dataset):
                   f"sigma_factor={face_blur_sigma_factor}")
         else:
             self.face_lookup = None
+
+    def _build_sorted_indices_from_distances(self, sample_distances) -> dict[int, list[int]]:
+        """Per-identity dataset indices sorted by ascending centroid distance,
+        using an in-memory per-sample distance array (carried in the store).
+        No file I/O — replaces the 52K-file-open init when training from the store.
+        """
+        # Convert to a Python list once — sorted()'s key would otherwise do a
+        # numpy scalar fetch per comparison (O(N log N) numpy __getitem__ calls).
+        dist = sample_distances.tolist() if hasattr(sample_distances, "tolist") else sample_distances
+        result: dict[int, list[int]] = {}
+        for gid, idxs in self.identity_to_indices.items():
+            result[gid] = sorted(idxs, key=dist.__getitem__)
+        return result
 
     @staticmethod
     def _build_sorted_indices(image_paths,
@@ -426,6 +508,9 @@ class PKBatchSampler(Sampler):
                  curriculum_p_start: float = 1.0,
                  curriculum_p_end: float = 1.0,
                  curriculum_end_frac: float = 0.3,
+                 per_project_p: bool = False,
+                 p_labeled: float = 1.0,
+                 p_unlabeled: float = 1.0,
                 ):
         self.dataset = dataset
         self.P = P
@@ -435,6 +520,11 @@ class PKBatchSampler(Sampler):
         self.p_start = curriculum_p_start
         self.p_end = curriculum_p_end
         self.end_frac = curriculum_end_frac
+        # Per-project mode: static p per identity by labeled-ness (no time ramp).
+        # labeled (reviewer-trusted) -> p_labeled; else -> p_unlabeled.
+        self.per_project_p = per_project_p
+        self.p_labeled = p_labeled
+        self.p_unlabeled = p_unlabeled
 
         if len(dataset.valid_projects) < P:
             raise ValueError(
@@ -442,27 +532,35 @@ class PKBatchSampler(Sampler):
                 f"but only {len(dataset.valid_projects)} available."
             )
 
-        curriculum_active = (curriculum_p_start != 1.0) or (curriculum_p_end != 1.0)
+        if per_project_p:
+            curriculum_active = (p_labeled != 1.0) or (p_unlabeled != 1.0)
+        else:
+            curriculum_active = (curriculum_p_start != 1.0) or (curriculum_p_end != 1.0)
         if curriculum_active and dataset.identity_to_sorted_indices is None:
             raise ValueError(
-                "Curriculum is active (p_start or p_end != 1.0) but the dataset has "
-                "no centroid distances. Pass `centroid_distances_filename` to ReIDCropDataset."
+                "Curriculum is active but the dataset has no centroid distances. "
+                "Pass `sample_distances` (store) or `centroid_distances_filename` to ReIDCropDataset."
             )
         self._use_sorted = dataset.identity_to_sorted_indices is not None
 
     def __iter__(self):
         ramp_end_iter = max(1, int(self.num_batches * self.end_frac))
         for t in range(self.num_batches):
+            # Ramp mode: global p(t). Per-project mode resolves p per identity below.
             if t < ramp_end_iter:
-                p = self.p_start + (self.p_end - self.p_start) * (t / ramp_end_iter)
+                p_ramp = self.p_start + (self.p_end - self.p_start) * (t / ramp_end_iter)
             else:
-                p = self.p_end
+                p_ramp = self.p_end
 
             projects = self.rng.sample(self.dataset.valid_projects, self.P)
             batch = []
             for proj in projects:
                 identity = self.rng.choice(self.dataset.project_to_identities[proj])
                 if self._use_sorted:
+                    if self.per_project_p:
+                        p = self.p_labeled if identity in self.dataset.labeled_identities else self.p_unlabeled
+                    else:
+                        p = p_ramp
                     sorted_idx = self.dataset.identity_to_sorted_indices[identity]
                     pool_size = max(self.K, math.ceil(p * len(sorted_idx)))
                     pool = sorted_idx[:pool_size]

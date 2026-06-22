@@ -14,7 +14,7 @@
 # ============================================================================
 
 # --- Run identity (W&B run name) ---
-run_name_prefix: "face_blur"   # first segment of run name. Change per experiment.
+run_name_prefix: "include_face"   # first segment of run name. Change per experiment.
 
 # --- Hardware (the only true A100-vs-T4 deltas) ---
 train:
@@ -31,11 +31,11 @@ optim:
 
 # --- Face blur (face-masked pretrain trial) ---
 face_blur:
-  enabled: true
+  enabled: false
   sigma_factor: 0.3
 
 # --- Checkpoint / eval cadence (optimizer steps) ---
 checkpointing:
-  period: 250                # save a ckpt every N iters (max_to_keep stays from base)
+  period: 249                # save a ckpt every N iters (max_to_keep stays from base)
 evaluation:
   eval_period_iterations: 1000   # run eval every N iters

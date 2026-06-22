@@ -19,7 +19,7 @@ from train_pictime.wandb_logger import init_wandb, log_wandb
 from train_pictime.finetune.supcon_loss import SupConLoss
 from pytorch_metric_learning.losses import ArcFaceLoss
 from train_pictime.finetune.reid_dataset import (
-    load_index, build_global_identity_map, ReIDCropDataset,
+    load_index, load_store, build_global_identity_map, ReIDCropDataset,
     PKBatchSampler, train_val_split, get_train_transform,
 )
 from train_pictime.finetune.reid_evaluator import ReIDEvaluator
@@ -194,37 +194,53 @@ def maybe_unfreeze(backbone, proj_head, criterion, optimizer, iteration, cfg):
 # Best-checkpoint tracking
 # ---------------------------------------------------------------------------
 
-class BestCheckpointTracker:
-    """Track and keep only the best N checkpoints by a metric (higher = better)."""
+class CheckpointManager:
+    """Keep exactly two checkpoints at all times: the BEST (highest metric) and
+    the LAST (most recent save). They are always separate files, even when the
+    same iteration is both — so each role is independently loadable.
 
-    def __init__(self, ckpt_dir: Path, max_keep: int = 3):
+    Naming:
+      best -> ckpt_iter{N}_sil{S}.pt   (unchanged form; find_best_silhouette_ckpt,
+                                        which globs ckpt_iter*_sil*.pt, keeps
+                                        matching exactly the best)
+      last -> last_iter{N}_sil{S}.pt   (distinct prefix; ignored by that glob)
+    """
+
+    def __init__(self, ckpt_dir: Path):
         self.ckpt_dir = ckpt_dir
-        self.max_keep = max_keep
-        self.entries: list[tuple[float, Path]] = []  # (metric_value, path)
+        self.best_value: float | None = None
+        self.best_path: Path | None = None
+        self.last_path: Path | None = None
         self.ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-    def maybe_save(self, metric_value: float, iteration: int, backbone, proj_head, criterion, optimizer):
-        """Save if metric is better than worst kept checkpoint."""
-        if len(self.entries) >= self.max_keep:
-            worst_val, worst_path = min(self.entries, key=lambda x: x[0])
-            if metric_value <= worst_val:
-                return  # not good enough
-            # Remove worst
-            self.entries.remove((worst_val, worst_path))
-            if worst_path.exists():
-                worst_path.unlink()
-
-        path = self.ckpt_dir / f"ckpt_iter{iteration}_sil{metric_value:.4f}.pt"
-        torch.save({
+    def save(self, metric_value: float, iteration: int, backbone, proj_head, criterion, optimizer):
+        """Always (re)write LAST; update BEST only when the metric improves."""
+        payload = {
             "iteration": iteration,
             "silhouette": metric_value,
             "backbone_state_dict": backbone.state_dict(),
             "proj_head_state_dict": proj_head.state_dict(),
             "criterion_state_dict": criterion.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
-        }, path)
-        self.entries.append((metric_value, path))
-        print(f"[Checkpoint] Saved {path.name} (silhouette={metric_value:.4f})")
+        }
+
+        # LAST — rolling single file, overwritten each save.
+        new_last = self.ckpt_dir / f"last_iter{iteration}_sil{metric_value:.4f}.pt"
+        torch.save(payload, new_last)
+        if self.last_path is not None and self.last_path != new_last and self.last_path.exists():
+            self.last_path.unlink()
+        self.last_path = new_last
+        print(f"[Checkpoint] Saved LAST {new_last.name}")
+
+        # BEST — single highest-metric file (kept under the legacy ckpt_iter* name).
+        if self.best_value is None or metric_value > self.best_value:
+            new_best = self.ckpt_dir / f"ckpt_iter{iteration}_sil{metric_value:.4f}.pt"
+            torch.save(payload, new_best)
+            if self.best_path is not None and self.best_path != new_best and self.best_path.exists():
+                self.best_path.unlink()
+            self.best_value = metric_value
+            self.best_path = new_best
+            print(f"[Checkpoint] Saved BEST {new_best.name} (silhouette={metric_value:.4f})")
 
 
 # ---------------------------------------------------------------------------
@@ -245,13 +261,29 @@ def run_finetune(cfg):
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     print(f"Output dir: {output_dir}")
 
+    # Data — load the project-keyed store (built by build_store.py). Carries
+    # per-crop centroid distances (in-memory curriculum, no per-project file opens)
+    # and the labeled-project set (reviewer-trusted clusters_fixed → per-project p).
+    # Loaded before W&B init so the run name can carry the labeled-project count.
+    print("Loading store...")
+    store_path = Path(cfg.data_base_path) / cfg.get("reid_store_filename", "reid_store.pkl")
+    (image_paths, bboxes, bbox_indices, project_ids, cluster_ids,
+     distances, labeled_projects) = load_store(store_path, cfg.data_base_path)
+    n_labeled = len(labeled_projects)
+    print(f"Store: {len(image_paths)} crops, {n_labeled} labeled projects")
+
     # W&B — derive arch tag from pretrain config
     pretrain_cfg = OmegaConf.load(pretrain_cfg_path)
     arch_tag = arch_to_tag(pretrain_cfg.student.arch) + str(int(pretrain_cfg.student.patch_size))
     batch_size = cfg.P * cfg.K
     frozen_tag = "_frozen" if cfg.freeze_backbone and cfg.unfreeze_after <= 0 else ""
-    tag_suffix = f"_{cfg.experiment_tag}" if cfg.get("experiment_tag") else ""
-    run_name = f"finetune_reid_{arch_tag}_bs{batch_size}{frozen_tag}{tag_suffix}"
+    # Tag suffix carries the labeled-project count (grows each retrain cycle), after
+    # any configured experiment_tag base. Prefix is the version dir (V<n>) so the
+    # W&B run is trivially matched to its ckpt later.
+    base_tag = f"_{cfg.experiment_tag}" if cfg.get("experiment_tag") else ""
+    tag_suffix = f"{base_tag}_lbl{n_labeled}"
+    version_tag = Path(output_dir).name
+    run_name = f"{version_tag}_finetune_reid_{arch_tag}_bs{batch_size}{frozen_tag}{tag_suffix}"
     run = init_wandb(
                         cfg,
                         output_dir=output_dir,
@@ -270,15 +302,6 @@ def run_finetune(cfg):
 
     proj_head = build_projection_head(embed_dim, cfg.proj_hidden_dim, cfg.proj_output_dim).cuda()
 
-    # Data — load from pre-built index (created by build_index.py)
-    print("Loading index...")
-    index_path = Path(cfg.data_base_path) / cfg.get("reid_index_filename", "reid_index.npz")
-    image_paths, bboxes, bbox_indices, project_ids, cluster_ids = load_index(index_path)
-    ########################################################################################## TODO comment out
-    # tmp_trip = 10000
-    # image_paths, bboxes, bbox_indices, project_ids, cluster_ids = image_paths[:tmp_trip], bboxes[:tmp_trip], bbox_indices[:tmp_trip], project_ids[:tmp_trip], cluster_ids[:tmp_trip]
-    ##############################################################################################################################
-
     # Drop cluster_id == -1 globally — HDBSCAN noise (or reviewer-flagged ambiguous);
     # too dirty to train or evaluate on. Keeps vanilla and curriculum on the same
     # identity pool so iter counts and metrics are comparable.
@@ -289,22 +312,32 @@ def run_finetune(cfg):
     bbox_indices  = bbox_indices[keep]
     project_ids   = project_ids[keep]
     cluster_ids   = cluster_ids[keep]
+    distances     = distances[keep]
     print(f"Filtered {n_dropped} cluster_id=-1 samples globally; {len(image_paths)} samples remain")
     print(f"Total samples: {len(image_paths)}")
 
-    # Split by project
+    # Split by project. project_ids is an object (string) array, so np.isin
+    # falls back to an O(N*M) Python-comparison path — minutes-to-hours at N~5M
+    # crops × M~50K projects. Set-membership is one O(N) pass instead, and val is
+    # exactly the complement of train (train_val_split partitions unique_projects).
     unique_projects = sorted(set(project_ids))
     train_project_ids, val_project_ids = train_val_split(unique_projects, cfg.val_ratio, cfg.seed)
-    train_mask = np.isin(project_ids, train_project_ids)
-    val_mask = np.isin(project_ids, val_project_ids)
+    train_set = set(train_project_ids)
+    train_mask = np.fromiter((pid in train_set for pid in project_ids), dtype=bool, count=len(project_ids))
+    val_mask = ~train_mask
     print(f"Train: {len(train_project_ids)} projects ({train_mask.sum()} samples), "
           f"Val: {len(val_project_ids)} projects ({val_mask.sum()} samples)")
 
-    # Curriculum config
+    # Curriculum config. Two modes:
+    #   "per_project" (current) — static p per identity by labeled-ness:
+    #       labeled (reviewer-trusted) -> p_labeled; else -> p_unlabeled.
+    #   "ramp" (legacy) — global p(t) ramp p_start -> p_end over end_frac.
+    # Curriculum sorting uses the store's per-crop distances (passed to the dataset
+    # below), so no per-project distance files are read on the train path.
     curriculum_cfg = cfg.get("curriculum", None)
     curriculum_enabled = bool(curriculum_cfg and curriculum_cfg.get("enabled", False))
-
-    centroid_distances_filename = (curriculum_cfg.centroid_distances_filename if curriculum_enabled else None)
+    curriculum_mode = (curriculum_cfg.get("mode", "ramp") if curriculum_enabled else "ramp")
+    per_project_p = curriculum_enabled and curriculum_mode == "per_project"
 
     # Face-blur config (Trial 3) — mirrors the curriculum pattern. Missing block = disabled.
     face_blur_cfg = cfg.get("face_blur", None)
@@ -324,14 +357,15 @@ def run_finetune(cfg):
                                     train_labels,
                                     transform=get_train_transform(),
                                     min_k=cfg.K,
-                                    centroid_distances_filename=centroid_distances_filename,
+                                    sample_distances=distances[train_mask],
+                                    labeled_projects=labeled_projects,
                                     face_blur_enabled=face_blur_enabled,
                                     face_blur_sigma_factor=face_blur_sigma_factor,
                                     face_blur_faces_filename=face_blur_faces_filename,
                                    )
     print(f"Valid projects for sampling: {len(train_dataset.valid_projects)}")
-    print(f"Valid identities (>= {cfg.K} samples): "
-          f"{len([v for v in train_dataset.identity_to_indices.values() if len(v) >= cfg.K])}")
+    # print(f"Valid identities (>= {cfg.K} samples): "
+    #       f"{len([v for v in train_dataset.identity_to_indices.values() if len(v) >= cfg.K])}")
 
     # Compute iterations
     num_valid_identities = len([v for v in train_dataset.identity_to_indices.values() if len(v) >= cfg.K])
@@ -339,12 +373,20 @@ def run_finetune(cfg):
     total_iters = cfg.num_epochs * iters_per_epoch
     print(f"Iters per epoch: {iters_per_epoch}, Total iters: {total_iters}")
 
+    ramp_active = curriculum_enabled and not per_project_p
     sampler = PKBatchSampler(
         train_dataset, P=cfg.P, K=cfg.K, num_batches=total_iters, seed=cfg.seed,
-        curriculum_p_start=(curriculum_cfg.p_start if curriculum_enabled else 1.0),
-        curriculum_p_end=(curriculum_cfg.p_end if curriculum_enabled else 1.0),
-        curriculum_end_frac=(curriculum_cfg.end_frac if curriculum_enabled else 0.3),
+        curriculum_p_start=(curriculum_cfg.p_start if ramp_active else 1.0),
+        curriculum_p_end=(curriculum_cfg.p_end if ramp_active else 1.0),
+        curriculum_end_frac=(curriculum_cfg.end_frac if ramp_active else 0.3),
+        per_project_p=per_project_p,
+        p_labeled=(curriculum_cfg.p_labeled if per_project_p else 1.0),
+        p_unlabeled=(curriculum_cfg.p_unlabeled if per_project_p else 1.0),
     )
+    if per_project_p:
+        n_lab = len(train_dataset.labeled_identities)
+        print(f"Per-project curriculum: p_labeled={curriculum_cfg.p_labeled} "
+              f"(labeled identities={n_lab}), p_unlabeled={curriculum_cfg.p_unlabeled}")
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_sampler=sampler,
@@ -420,7 +462,7 @@ def run_finetune(cfg):
     )
 
     # Checkpointing
-    ckpt_tracker = BestCheckpointTracker(Path(output_dir) / "ckpt", max_keep=cfg.ckpt_max_keep)
+    ckpt_tracker = CheckpointManager(Path(output_dir) / "ckpt")  # keeps best + last (ckpt_max_keep no longer used)
 
     # Training loop
     pbar = tqdm(
@@ -499,8 +541,10 @@ def run_finetune(cfg):
                 "train/loss": loss.item(),
                 "train/lr": lr,
             }
-            # Curriculum p — duplicates the formula in PKBatchSampler.__iter__; keep aligned.
-            if curriculum_enabled:
+            # Curriculum p. Per-project mode has no single scalar (p depends on the
+            # identity's labeled-ness) so it's not logged per-iter. Ramp mode logs
+            # p(t) — duplicates the formula in PKBatchSampler.__iter__; keep aligned.
+            if curriculum_enabled and not per_project_p:
                 ramp_end = max(1, int(total_iters * curriculum_cfg.end_frac))
                 if it < ramp_end:
                     cur_p = curriculum_cfg.p_start + (curriculum_cfg.p_end - curriculum_cfg.p_start) * (it / ramp_end)
@@ -529,14 +573,14 @@ def run_finetune(cfg):
         if cfg.ckpt_every > 0 and it > 0 and it % cfg.ckpt_every == 0:
             metrics = evaluator.maybe_eval(backbone, proj_head, it, run)
             if metrics is not None and "silhouette" in metrics:
-                ckpt_tracker.maybe_save(metrics["silhouette"], it, backbone, proj_head, criterion, optimizer)
+                ckpt_tracker.save(metrics["silhouette"], it, backbone, proj_head, criterion, optimizer)
 
     pbar.close()
 
     # Final eval
     metrics = evaluator.maybe_eval(backbone, proj_head, total_iters, run)
     if metrics is not None and "silhouette" in metrics:
-        ckpt_tracker.maybe_save(metrics["silhouette"], total_iters, backbone, proj_head, criterion, optimizer)
+        ckpt_tracker.save(metrics["silhouette"], total_iters, backbone, proj_head, criterion, optimizer)
 
     if run is not None:
         run.finish()

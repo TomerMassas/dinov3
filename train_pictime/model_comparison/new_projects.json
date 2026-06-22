@@ -1,0 +1,1413 @@
+{
+  "project_ids": [
+    "23974712",
+    "19910383",
+    "11135317",
+    "28538626",
+    "31688402",
+    "16152390",
+    "13818682",
+    "15690339",
+    "15863594",
+    "31068574",
+    "29197680",
+    "31923718",
+    "30452658",
+    "26626388",
+    "31560559",
+    "23404479",
+    "24064492",
+    "31803624",
+    "31697460",
+    "15153820",
+    "12201886",
+    "19138159",
+    "11506379",
+    "27627600",
+    "31670428",
+    "31915626",
+    "17021467",
+    "26180342",
+    "25909969",
+    "16218686",
+    "15367769",
+    "18761764",
+    "31115736",
+    "31955860",
+    "27191111",
+    "31125351",
+    "26257121",
+    "18913269",
+    "21232227",
+    "31742469",
+    "11164962",
+    "29304041",
+    "11545337",
+    "31925919",
+    "17205564",
+    "15918897",
+    "15631429",
+    "15794311",
+    "15636097",
+    "15504102",
+    "29196242",
+    "31674996",
+    "21695329",
+    "18953794",
+    "15572124",
+    "24901621",
+    "20622490",
+    "24129032",
+    "31587482",
+    "20467378",
+    "15418805",
+    "15669647",
+    "17339158",
+    "31414364",
+    "31836515",
+    "31955260",
+    "27698328",
+    "16300805",
+    "30529449",
+    "31811281",
+    "31973270",
+    "14175502",
+    "31007858",
+    "28034568",
+    "31168008",
+    "23792697",
+    "19935014",
+    "31624082",
+    "21510858",
+    "26304932",
+    "30711904",
+    "28582862",
+    "32634118",
+    "31597854",
+    "31557489",
+    "18178131",
+    "29084274",
+    "31899222",
+    "30890725",
+    "19859983",
+    "30789204",
+    "11708418",
+    "28666633",
+    "29374668",
+    "26438566",
+    "29233756",
+    "31851375",
+    "16137770",
+    "31908061",
+    "22004182",
+    "27630509",
+    "28752818",
+    "29147125",
+    "31502054",
+    "31628210",
+    "23511036",
+    "30924812",
+    "30956309",
+    "31809071",
+    "19143796",
+    "27455947",
+    "15979136",
+    "25993191",
+    "26067944",
+    "28217616",
+    "13313786",
+    "31767082",
+    "25379971",
+    "24013933",
+    "31881285",
+    "15983742",
+    "20281341",
+    "24912394",
+    "31826966",
+    "29210133",
+    "28963120",
+    "30634131",
+    "30789413",
+    "31964935",
+    "17567099",
+    "30719630",
+    "13961066",
+    "25755833",
+    "30912115",
+    "29448551",
+    "25560536",
+    "23702004",
+    "29354027",
+    "31899584",
+    "14713748",
+    "24798967",
+    "30454211",
+    "14706475",
+    "27311989",
+    "24691934",
+    "31737284",
+    "26201058",
+    "15269946",
+    "24143626",
+    "24598095",
+    "29140063",
+    "28717709",
+    "15639536",
+    "29321593",
+    "27935107",
+    "26897381",
+    "13415812",
+    "24067398",
+    "28747616",
+    "15915948",
+    "28055375",
+    "29043800",
+    "21117863",
+    "26277273",
+    "17306726",
+    "26678641",
+    "25933071",
+    "28827284",
+    "15566695",
+    "18211757",
+    "30750634",
+    "31211420",
+    "14175488",
+    "26338355",
+    "31039477",
+    "27660870",
+    "31286014",
+    "25631217",
+    "15577158",
+    "16155445",
+    "25092249",
+    "18499549",
+    "31179353",
+    "15427758",
+    "15127458",
+    "20130900",
+    "21045492",
+    "28148994",
+    "17045348",
+    "14346986",
+    "29388350",
+    "24726320",
+    "25776050",
+    "19688433",
+    "26331337",
+    "31860017",
+    "31811522",
+    "26526378",
+    "14478127",
+    "31792589"
+  ],
+  "count": 200,
+  "selection": "top_by_crops_per_cluster",
+  "top_n": 200,
+  "ratio_range": [
+    24.047619047619047,
+    210.5
+  ],
+  "details": [
+    {
+      "project_id": "23974712",
+      "num_crops": 421,
+      "num_clusters": 2,
+      "ratio": 210.5
+    },
+    {
+      "project_id": "19910383",
+      "num_crops": 1144,
+      "num_clusters": 6,
+      "ratio": 190.66666666666666
+    },
+    {
+      "project_id": "11135317",
+      "num_crops": 135,
+      "num_clusters": 1,
+      "ratio": 135.0
+    },
+    {
+      "project_id": "28538626",
+      "num_crops": 131,
+      "num_clusters": 1,
+      "ratio": 131.0
+    },
+    {
+      "project_id": "31688402",
+      "num_crops": 962,
+      "num_clusters": 8,
+      "ratio": 120.25
+    },
+    {
+      "project_id": "16152390",
+      "num_crops": 114,
+      "num_clusters": 1,
+      "ratio": 114.0
+    },
+    {
+      "project_id": "13818682",
+      "num_crops": 113,
+      "num_clusters": 1,
+      "ratio": 113.0
+    },
+    {
+      "project_id": "15690339",
+      "num_crops": 101,
+      "num_clusters": 1,
+      "ratio": 101.0
+    },
+    {
+      "project_id": "15863594",
+      "num_crops": 100,
+      "num_clusters": 1,
+      "ratio": 100.0
+    },
+    {
+      "project_id": "31068574",
+      "num_crops": 697,
+      "num_clusters": 7,
+      "ratio": 99.57142857142857
+    },
+    {
+      "project_id": "29197680",
+      "num_crops": 193,
+      "num_clusters": 2,
+      "ratio": 96.5
+    },
+    {
+      "project_id": "31923718",
+      "num_crops": 190,
+      "num_clusters": 2,
+      "ratio": 95.0
+    },
+    {
+      "project_id": "30452658",
+      "num_crops": 470,
+      "num_clusters": 5,
+      "ratio": 94.0
+    },
+    {
+      "project_id": "26626388",
+      "num_crops": 277,
+      "num_clusters": 3,
+      "ratio": 92.33333333333333
+    },
+    {
+      "project_id": "31560559",
+      "num_crops": 173,
+      "num_clusters": 2,
+      "ratio": 86.5
+    },
+    {
+      "project_id": "23404479",
+      "num_crops": 81,
+      "num_clusters": 1,
+      "ratio": 81.0
+    },
+    {
+      "project_id": "24064492",
+      "num_crops": 81,
+      "num_clusters": 1,
+      "ratio": 81.0
+    },
+    {
+      "project_id": "31803624",
+      "num_crops": 869,
+      "num_clusters": 11,
+      "ratio": 79.0
+    },
+    {
+      "project_id": "31697460",
+      "num_crops": 230,
+      "num_clusters": 3,
+      "ratio": 76.66666666666667
+    },
+    {
+      "project_id": "15153820",
+      "num_crops": 153,
+      "num_clusters": 2,
+      "ratio": 76.5
+    },
+    {
+      "project_id": "12201886",
+      "num_crops": 457,
+      "num_clusters": 6,
+      "ratio": 76.16666666666667
+    },
+    {
+      "project_id": "19138159",
+      "num_crops": 380,
+      "num_clusters": 5,
+      "ratio": 76.0
+    },
+    {
+      "project_id": "11506379",
+      "num_crops": 596,
+      "num_clusters": 8,
+      "ratio": 74.5
+    },
+    {
+      "project_id": "27627600",
+      "num_crops": 149,
+      "num_clusters": 2,
+      "ratio": 74.5
+    },
+    {
+      "project_id": "31670428",
+      "num_crops": 341,
+      "num_clusters": 5,
+      "ratio": 68.2
+    },
+    {
+      "project_id": "31915626",
+      "num_crops": 1364,
+      "num_clusters": 20,
+      "ratio": 68.2
+    },
+    {
+      "project_id": "17021467",
+      "num_crops": 67,
+      "num_clusters": 1,
+      "ratio": 67.0
+    },
+    {
+      "project_id": "26180342",
+      "num_crops": 199,
+      "num_clusters": 3,
+      "ratio": 66.33333333333333
+    },
+    {
+      "project_id": "25909969",
+      "num_crops": 130,
+      "num_clusters": 2,
+      "ratio": 65.0
+    },
+    {
+      "project_id": "16218686",
+      "num_crops": 450,
+      "num_clusters": 7,
+      "ratio": 64.28571428571429
+    },
+    {
+      "project_id": "15367769",
+      "num_crops": 186,
+      "num_clusters": 3,
+      "ratio": 62.0
+    },
+    {
+      "project_id": "18761764",
+      "num_crops": 308,
+      "num_clusters": 5,
+      "ratio": 61.6
+    },
+    {
+      "project_id": "31115736",
+      "num_crops": 429,
+      "num_clusters": 7,
+      "ratio": 61.285714285714285
+    },
+    {
+      "project_id": "31955860",
+      "num_crops": 181,
+      "num_clusters": 3,
+      "ratio": 60.333333333333336
+    },
+    {
+      "project_id": "27191111",
+      "num_crops": 59,
+      "num_clusters": 1,
+      "ratio": 59.0
+    },
+    {
+      "project_id": "31125351",
+      "num_crops": 521,
+      "num_clusters": 9,
+      "ratio": 57.888888888888886
+    },
+    {
+      "project_id": "26257121",
+      "num_crops": 231,
+      "num_clusters": 4,
+      "ratio": 57.75
+    },
+    {
+      "project_id": "18913269",
+      "num_crops": 334,
+      "num_clusters": 6,
+      "ratio": 55.666666666666664
+    },
+    {
+      "project_id": "21232227",
+      "num_crops": 388,
+      "num_clusters": 7,
+      "ratio": 55.42857142857143
+    },
+    {
+      "project_id": "31742469",
+      "num_crops": 166,
+      "num_clusters": 3,
+      "ratio": 55.333333333333336
+    },
+    {
+      "project_id": "11164962",
+      "num_crops": 110,
+      "num_clusters": 2,
+      "ratio": 55.0
+    },
+    {
+      "project_id": "29304041",
+      "num_crops": 268,
+      "num_clusters": 5,
+      "ratio": 53.6
+    },
+    {
+      "project_id": "11545337",
+      "num_crops": 213,
+      "num_clusters": 4,
+      "ratio": 53.25
+    },
+    {
+      "project_id": "31925919",
+      "num_crops": 475,
+      "num_clusters": 9,
+      "ratio": 52.77777777777778
+    },
+    {
+      "project_id": "17205564",
+      "num_crops": 211,
+      "num_clusters": 4,
+      "ratio": 52.75
+    },
+    {
+      "project_id": "15918897",
+      "num_crops": 258,
+      "num_clusters": 5,
+      "ratio": 51.6
+    },
+    {
+      "project_id": "15631429",
+      "num_crops": 102,
+      "num_clusters": 2,
+      "ratio": 51.0
+    },
+    {
+      "project_id": "15794311",
+      "num_crops": 102,
+      "num_clusters": 2,
+      "ratio": 51.0
+    },
+    {
+      "project_id": "15636097",
+      "num_crops": 305,
+      "num_clusters": 6,
+      "ratio": 50.833333333333336
+    },
+    {
+      "project_id": "15504102",
+      "num_crops": 454,
+      "num_clusters": 9,
+      "ratio": 50.44444444444444
+    },
+    {
+      "project_id": "29196242",
+      "num_crops": 99,
+      "num_clusters": 2,
+      "ratio": 49.5
+    },
+    {
+      "project_id": "31674996",
+      "num_crops": 247,
+      "num_clusters": 5,
+      "ratio": 49.4
+    },
+    {
+      "project_id": "21695329",
+      "num_crops": 148,
+      "num_clusters": 3,
+      "ratio": 49.333333333333336
+    },
+    {
+      "project_id": "18953794",
+      "num_crops": 332,
+      "num_clusters": 7,
+      "ratio": 47.42857142857143
+    },
+    {
+      "project_id": "15572124",
+      "num_crops": 473,
+      "num_clusters": 10,
+      "ratio": 47.3
+    },
+    {
+      "project_id": "24901621",
+      "num_crops": 141,
+      "num_clusters": 3,
+      "ratio": 47.0
+    },
+    {
+      "project_id": "20622490",
+      "num_crops": 235,
+      "num_clusters": 5,
+      "ratio": 47.0
+    },
+    {
+      "project_id": "24129032",
+      "num_crops": 180,
+      "num_clusters": 4,
+      "ratio": 45.0
+    },
+    {
+      "project_id": "31587482",
+      "num_crops": 180,
+      "num_clusters": 4,
+      "ratio": 45.0
+    },
+    {
+      "project_id": "20467378",
+      "num_crops": 179,
+      "num_clusters": 4,
+      "ratio": 44.75
+    },
+    {
+      "project_id": "15418805",
+      "num_crops": 221,
+      "num_clusters": 5,
+      "ratio": 44.2
+    },
+    {
+      "project_id": "15669647",
+      "num_crops": 88,
+      "num_clusters": 2,
+      "ratio": 44.0
+    },
+    {
+      "project_id": "17339158",
+      "num_crops": 132,
+      "num_clusters": 3,
+      "ratio": 44.0
+    },
+    {
+      "project_id": "31414364",
+      "num_crops": 44,
+      "num_clusters": 1,
+      "ratio": 44.0
+    },
+    {
+      "project_id": "31836515",
+      "num_crops": 173,
+      "num_clusters": 4,
+      "ratio": 43.25
+    },
+    {
+      "project_id": "31955260",
+      "num_crops": 212,
+      "num_clusters": 5,
+      "ratio": 42.4
+    },
+    {
+      "project_id": "27698328",
+      "num_crops": 462,
+      "num_clusters": 11,
+      "ratio": 42.0
+    },
+    {
+      "project_id": "16300805",
+      "num_crops": 125,
+      "num_clusters": 3,
+      "ratio": 41.666666666666664
+    },
+    {
+      "project_id": "30529449",
+      "num_crops": 83,
+      "num_clusters": 2,
+      "ratio": 41.5
+    },
+    {
+      "project_id": "31811281",
+      "num_crops": 413,
+      "num_clusters": 10,
+      "ratio": 41.3
+    },
+    {
+      "project_id": "31973270",
+      "num_crops": 904,
+      "num_clusters": 22,
+      "ratio": 41.09090909090909
+    },
+    {
+      "project_id": "14175502",
+      "num_crops": 245,
+      "num_clusters": 6,
+      "ratio": 40.833333333333336
+    },
+    {
+      "project_id": "31007858",
+      "num_crops": 122,
+      "num_clusters": 3,
+      "ratio": 40.666666666666664
+    },
+    {
+      "project_id": "28034568",
+      "num_crops": 121,
+      "num_clusters": 3,
+      "ratio": 40.333333333333336
+    },
+    {
+      "project_id": "31168008",
+      "num_crops": 119,
+      "num_clusters": 3,
+      "ratio": 39.666666666666664
+    },
+    {
+      "project_id": "23792697",
+      "num_crops": 79,
+      "num_clusters": 2,
+      "ratio": 39.5
+    },
+    {
+      "project_id": "19935014",
+      "num_crops": 158,
+      "num_clusters": 4,
+      "ratio": 39.5
+    },
+    {
+      "project_id": "31624082",
+      "num_crops": 315,
+      "num_clusters": 8,
+      "ratio": 39.375
+    },
+    {
+      "project_id": "21510858",
+      "num_crops": 116,
+      "num_clusters": 3,
+      "ratio": 38.666666666666664
+    },
+    {
+      "project_id": "26304932",
+      "num_crops": 192,
+      "num_clusters": 5,
+      "ratio": 38.4
+    },
+    {
+      "project_id": "30711904",
+      "num_crops": 229,
+      "num_clusters": 6,
+      "ratio": 38.166666666666664
+    },
+    {
+      "project_id": "28582862",
+      "num_crops": 379,
+      "num_clusters": 10,
+      "ratio": 37.9
+    },
+    {
+      "project_id": "32634118",
+      "num_crops": 37,
+      "num_clusters": 1,
+      "ratio": 37.0
+    },
+    {
+      "project_id": "31597854",
+      "num_crops": 184,
+      "num_clusters": 5,
+      "ratio": 36.8
+    },
+    {
+      "project_id": "31557489",
+      "num_crops": 183,
+      "num_clusters": 5,
+      "ratio": 36.6
+    },
+    {
+      "project_id": "18178131",
+      "num_crops": 73,
+      "num_clusters": 2,
+      "ratio": 36.5
+    },
+    {
+      "project_id": "29084274",
+      "num_crops": 218,
+      "num_clusters": 6,
+      "ratio": 36.333333333333336
+    },
+    {
+      "project_id": "31899222",
+      "num_crops": 109,
+      "num_clusters": 3,
+      "ratio": 36.333333333333336
+    },
+    {
+      "project_id": "30890725",
+      "num_crops": 472,
+      "num_clusters": 13,
+      "ratio": 36.30769230769231
+    },
+    {
+      "project_id": "19859983",
+      "num_crops": 145,
+      "num_clusters": 4,
+      "ratio": 36.25
+    },
+    {
+      "project_id": "30789204",
+      "num_crops": 72,
+      "num_clusters": 2,
+      "ratio": 36.0
+    },
+    {
+      "project_id": "11708418",
+      "num_crops": 179,
+      "num_clusters": 5,
+      "ratio": 35.8
+    },
+    {
+      "project_id": "28666633",
+      "num_crops": 178,
+      "num_clusters": 5,
+      "ratio": 35.6
+    },
+    {
+      "project_id": "29374668",
+      "num_crops": 106,
+      "num_clusters": 3,
+      "ratio": 35.333333333333336
+    },
+    {
+      "project_id": "26438566",
+      "num_crops": 1906,
+      "num_clusters": 54,
+      "ratio": 35.2962962962963
+    },
+    {
+      "project_id": "29233756",
+      "num_crops": 281,
+      "num_clusters": 8,
+      "ratio": 35.125
+    },
+    {
+      "project_id": "31851375",
+      "num_crops": 281,
+      "num_clusters": 8,
+      "ratio": 35.125
+    },
+    {
+      "project_id": "16137770",
+      "num_crops": 105,
+      "num_clusters": 3,
+      "ratio": 35.0
+    },
+    {
+      "project_id": "31908061",
+      "num_crops": 175,
+      "num_clusters": 5,
+      "ratio": 35.0
+    },
+    {
+      "project_id": "22004182",
+      "num_crops": 139,
+      "num_clusters": 4,
+      "ratio": 34.75
+    },
+    {
+      "project_id": "27630509",
+      "num_crops": 104,
+      "num_clusters": 3,
+      "ratio": 34.666666666666664
+    },
+    {
+      "project_id": "28752818",
+      "num_crops": 104,
+      "num_clusters": 3,
+      "ratio": 34.666666666666664
+    },
+    {
+      "project_id": "29147125",
+      "num_crops": 104,
+      "num_clusters": 3,
+      "ratio": 34.666666666666664
+    },
+    {
+      "project_id": "31502054",
+      "num_crops": 207,
+      "num_clusters": 6,
+      "ratio": 34.5
+    },
+    {
+      "project_id": "31628210",
+      "num_crops": 206,
+      "num_clusters": 6,
+      "ratio": 34.333333333333336
+    },
+    {
+      "project_id": "23511036",
+      "num_crops": 135,
+      "num_clusters": 4,
+      "ratio": 33.75
+    },
+    {
+      "project_id": "30924812",
+      "num_crops": 134,
+      "num_clusters": 4,
+      "ratio": 33.5
+    },
+    {
+      "project_id": "30956309",
+      "num_crops": 335,
+      "num_clusters": 10,
+      "ratio": 33.5
+    },
+    {
+      "project_id": "31809071",
+      "num_crops": 232,
+      "num_clusters": 7,
+      "ratio": 33.142857142857146
+    },
+    {
+      "project_id": "19143796",
+      "num_crops": 364,
+      "num_clusters": 11,
+      "ratio": 33.09090909090909
+    },
+    {
+      "project_id": "27455947",
+      "num_crops": 66,
+      "num_clusters": 2,
+      "ratio": 33.0
+    },
+    {
+      "project_id": "15979136",
+      "num_crops": 363,
+      "num_clusters": 11,
+      "ratio": 33.0
+    },
+    {
+      "project_id": "25993191",
+      "num_crops": 197,
+      "num_clusters": 6,
+      "ratio": 32.833333333333336
+    },
+    {
+      "project_id": "26067944",
+      "num_crops": 164,
+      "num_clusters": 5,
+      "ratio": 32.8
+    },
+    {
+      "project_id": "28217616",
+      "num_crops": 131,
+      "num_clusters": 4,
+      "ratio": 32.75
+    },
+    {
+      "project_id": "13313786",
+      "num_crops": 65,
+      "num_clusters": 2,
+      "ratio": 32.5
+    },
+    {
+      "project_id": "31767082",
+      "num_crops": 97,
+      "num_clusters": 3,
+      "ratio": 32.333333333333336
+    },
+    {
+      "project_id": "25379971",
+      "num_crops": 256,
+      "num_clusters": 8,
+      "ratio": 32.0
+    },
+    {
+      "project_id": "24013933",
+      "num_crops": 832,
+      "num_clusters": 26,
+      "ratio": 32.0
+    },
+    {
+      "project_id": "31881285",
+      "num_crops": 159,
+      "num_clusters": 5,
+      "ratio": 31.8
+    },
+    {
+      "project_id": "15983742",
+      "num_crops": 222,
+      "num_clusters": 7,
+      "ratio": 31.714285714285715
+    },
+    {
+      "project_id": "20281341",
+      "num_crops": 189,
+      "num_clusters": 6,
+      "ratio": 31.5
+    },
+    {
+      "project_id": "24912394",
+      "num_crops": 94,
+      "num_clusters": 3,
+      "ratio": 31.333333333333332
+    },
+    {
+      "project_id": "31826966",
+      "num_crops": 94,
+      "num_clusters": 3,
+      "ratio": 31.333333333333332
+    },
+    {
+      "project_id": "29210133",
+      "num_crops": 125,
+      "num_clusters": 4,
+      "ratio": 31.25
+    },
+    {
+      "project_id": "28963120",
+      "num_crops": 312,
+      "num_clusters": 10,
+      "ratio": 31.2
+    },
+    {
+      "project_id": "30634131",
+      "num_crops": 62,
+      "num_clusters": 2,
+      "ratio": 31.0
+    },
+    {
+      "project_id": "30789413",
+      "num_crops": 123,
+      "num_clusters": 4,
+      "ratio": 30.75
+    },
+    {
+      "project_id": "31964935",
+      "num_crops": 214,
+      "num_clusters": 7,
+      "ratio": 30.571428571428573
+    },
+    {
+      "project_id": "17567099",
+      "num_crops": 213,
+      "num_clusters": 7,
+      "ratio": 30.428571428571427
+    },
+    {
+      "project_id": "30719630",
+      "num_crops": 152,
+      "num_clusters": 5,
+      "ratio": 30.4
+    },
+    {
+      "project_id": "13961066",
+      "num_crops": 91,
+      "num_clusters": 3,
+      "ratio": 30.333333333333332
+    },
+    {
+      "project_id": "25755833",
+      "num_crops": 273,
+      "num_clusters": 9,
+      "ratio": 30.333333333333332
+    },
+    {
+      "project_id": "30912115",
+      "num_crops": 182,
+      "num_clusters": 6,
+      "ratio": 30.333333333333332
+    },
+    {
+      "project_id": "29448551",
+      "num_crops": 212,
+      "num_clusters": 7,
+      "ratio": 30.285714285714285
+    },
+    {
+      "project_id": "25560536",
+      "num_crops": 331,
+      "num_clusters": 11,
+      "ratio": 30.09090909090909
+    },
+    {
+      "project_id": "23702004",
+      "num_crops": 30,
+      "num_clusters": 1,
+      "ratio": 30.0
+    },
+    {
+      "project_id": "29354027",
+      "num_crops": 119,
+      "num_clusters": 4,
+      "ratio": 29.75
+    },
+    {
+      "project_id": "31899584",
+      "num_crops": 59,
+      "num_clusters": 2,
+      "ratio": 29.5
+    },
+    {
+      "project_id": "14713748",
+      "num_crops": 412,
+      "num_clusters": 14,
+      "ratio": 29.428571428571427
+    },
+    {
+      "project_id": "24798967",
+      "num_crops": 205,
+      "num_clusters": 7,
+      "ratio": 29.285714285714285
+    },
+    {
+      "project_id": "30454211",
+      "num_crops": 380,
+      "num_clusters": 13,
+      "ratio": 29.23076923076923
+    },
+    {
+      "project_id": "14706475",
+      "num_crops": 146,
+      "num_clusters": 5,
+      "ratio": 29.2
+    },
+    {
+      "project_id": "27311989",
+      "num_crops": 29,
+      "num_clusters": 1,
+      "ratio": 29.0
+    },
+    {
+      "project_id": "24691934",
+      "num_crops": 58,
+      "num_clusters": 2,
+      "ratio": 29.0
+    },
+    {
+      "project_id": "31737284",
+      "num_crops": 203,
+      "num_clusters": 7,
+      "ratio": 29.0
+    },
+    {
+      "project_id": "26201058",
+      "num_crops": 173,
+      "num_clusters": 6,
+      "ratio": 28.833333333333332
+    },
+    {
+      "project_id": "15269946",
+      "num_crops": 115,
+      "num_clusters": 4,
+      "ratio": 28.75
+    },
+    {
+      "project_id": "24143626",
+      "num_crops": 230,
+      "num_clusters": 8,
+      "ratio": 28.75
+    },
+    {
+      "project_id": "24598095",
+      "num_crops": 86,
+      "num_clusters": 3,
+      "ratio": 28.666666666666668
+    },
+    {
+      "project_id": "29140063",
+      "num_crops": 57,
+      "num_clusters": 2,
+      "ratio": 28.5
+    },
+    {
+      "project_id": "28717709",
+      "num_crops": 455,
+      "num_clusters": 16,
+      "ratio": 28.4375
+    },
+    {
+      "project_id": "15639536",
+      "num_crops": 225,
+      "num_clusters": 8,
+      "ratio": 28.125
+    },
+    {
+      "project_id": "29321593",
+      "num_crops": 364,
+      "num_clusters": 13,
+      "ratio": 28.0
+    },
+    {
+      "project_id": "27935107",
+      "num_crops": 83,
+      "num_clusters": 3,
+      "ratio": 27.666666666666668
+    },
+    {
+      "project_id": "26897381",
+      "num_crops": 55,
+      "num_clusters": 2,
+      "ratio": 27.5
+    },
+    {
+      "project_id": "13415812",
+      "num_crops": 576,
+      "num_clusters": 21,
+      "ratio": 27.428571428571427
+    },
+    {
+      "project_id": "24067398",
+      "num_crops": 82,
+      "num_clusters": 3,
+      "ratio": 27.333333333333332
+    },
+    {
+      "project_id": "28747616",
+      "num_crops": 410,
+      "num_clusters": 15,
+      "ratio": 27.333333333333332
+    },
+    {
+      "project_id": "15915948",
+      "num_crops": 270,
+      "num_clusters": 10,
+      "ratio": 27.0
+    },
+    {
+      "project_id": "28055375",
+      "num_crops": 54,
+      "num_clusters": 2,
+      "ratio": 27.0
+    },
+    {
+      "project_id": "29043800",
+      "num_crops": 27,
+      "num_clusters": 1,
+      "ratio": 27.0
+    },
+    {
+      "project_id": "21117863",
+      "num_crops": 486,
+      "num_clusters": 18,
+      "ratio": 27.0
+    },
+    {
+      "project_id": "26277273",
+      "num_crops": 162,
+      "num_clusters": 6,
+      "ratio": 27.0
+    },
+    {
+      "project_id": "17306726",
+      "num_crops": 240,
+      "num_clusters": 9,
+      "ratio": 26.666666666666668
+    },
+    {
+      "project_id": "26678641",
+      "num_crops": 213,
+      "num_clusters": 8,
+      "ratio": 26.625
+    },
+    {
+      "project_id": "25933071",
+      "num_crops": 158,
+      "num_clusters": 6,
+      "ratio": 26.333333333333332
+    },
+    {
+      "project_id": "28827284",
+      "num_crops": 417,
+      "num_clusters": 16,
+      "ratio": 26.0625
+    },
+    {
+      "project_id": "15566695",
+      "num_crops": 78,
+      "num_clusters": 3,
+      "ratio": 26.0
+    },
+    {
+      "project_id": "18211757",
+      "num_crops": 52,
+      "num_clusters": 2,
+      "ratio": 26.0
+    },
+    {
+      "project_id": "30750634",
+      "num_crops": 156,
+      "num_clusters": 6,
+      "ratio": 26.0
+    },
+    {
+      "project_id": "31211420",
+      "num_crops": 104,
+      "num_clusters": 4,
+      "ratio": 26.0
+    },
+    {
+      "project_id": "14175488",
+      "num_crops": 570,
+      "num_clusters": 22,
+      "ratio": 25.90909090909091
+    },
+    {
+      "project_id": "26338355",
+      "num_crops": 256,
+      "num_clusters": 10,
+      "ratio": 25.6
+    },
+    {
+      "project_id": "31039477",
+      "num_crops": 358,
+      "num_clusters": 14,
+      "ratio": 25.571428571428573
+    },
+    {
+      "project_id": "27660870",
+      "num_crops": 102,
+      "num_clusters": 4,
+      "ratio": 25.5
+    },
+    {
+      "project_id": "31286014",
+      "num_crops": 407,
+      "num_clusters": 16,
+      "ratio": 25.4375
+    },
+    {
+      "project_id": "25631217",
+      "num_crops": 127,
+      "num_clusters": 5,
+      "ratio": 25.4
+    },
+    {
+      "project_id": "15577158",
+      "num_crops": 76,
+      "num_clusters": 3,
+      "ratio": 25.333333333333332
+    },
+    {
+      "project_id": "16155445",
+      "num_crops": 76,
+      "num_clusters": 3,
+      "ratio": 25.333333333333332
+    },
+    {
+      "project_id": "25092249",
+      "num_crops": 76,
+      "num_clusters": 3,
+      "ratio": 25.333333333333332
+    },
+    {
+      "project_id": "18499549",
+      "num_crops": 177,
+      "num_clusters": 7,
+      "ratio": 25.285714285714285
+    },
+    {
+      "project_id": "31179353",
+      "num_crops": 756,
+      "num_clusters": 30,
+      "ratio": 25.2
+    },
+    {
+      "project_id": "15427758",
+      "num_crops": 100,
+      "num_clusters": 4,
+      "ratio": 25.0
+    },
+    {
+      "project_id": "15127458",
+      "num_crops": 50,
+      "num_clusters": 2,
+      "ratio": 25.0
+    },
+    {
+      "project_id": "20130900",
+      "num_crops": 125,
+      "num_clusters": 5,
+      "ratio": 25.0
+    },
+    {
+      "project_id": "21045492",
+      "num_crops": 50,
+      "num_clusters": 2,
+      "ratio": 25.0
+    },
+    {
+      "project_id": "28148994",
+      "num_crops": 2096,
+      "num_clusters": 84,
+      "ratio": 24.952380952380953
+    },
+    {
+      "project_id": "17045348",
+      "num_crops": 124,
+      "num_clusters": 5,
+      "ratio": 24.8
+    },
+    {
+      "project_id": "14346986",
+      "num_crops": 99,
+      "num_clusters": 4,
+      "ratio": 24.75
+    },
+    {
+      "project_id": "29388350",
+      "num_crops": 493,
+      "num_clusters": 20,
+      "ratio": 24.65
+    },
+    {
+      "project_id": "24726320",
+      "num_crops": 98,
+      "num_clusters": 4,
+      "ratio": 24.5
+    },
+    {
+      "project_id": "25776050",
+      "num_crops": 122,
+      "num_clusters": 5,
+      "ratio": 24.4
+    },
+    {
+      "project_id": "19688433",
+      "num_crops": 73,
+      "num_clusters": 3,
+      "ratio": 24.333333333333332
+    },
+    {
+      "project_id": "26331337",
+      "num_crops": 146,
+      "num_clusters": 6,
+      "ratio": 24.333333333333332
+    },
+    {
+      "project_id": "31860017",
+      "num_crops": 146,
+      "num_clusters": 6,
+      "ratio": 24.333333333333332
+    },
+    {
+      "project_id": "31811522",
+      "num_crops": 557,
+      "num_clusters": 23,
+      "ratio": 24.217391304347824
+    },
+    {
+      "project_id": "26526378",
+      "num_crops": 217,
+      "num_clusters": 9,
+      "ratio": 24.11111111111111
+    },
+    {
+      "project_id": "14478127",
+      "num_crops": 289,
+      "num_clusters": 12,
+      "ratio": 24.083333333333332
+    },
+    {
+      "project_id": "31792589",
+      "num_crops": 505,
+      "num_clusters": 21,
+      "ratio": 24.047619047619047
+    }
+  ]
+}

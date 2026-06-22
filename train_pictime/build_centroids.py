@@ -120,20 +120,23 @@ def main():
     print(f"Total clusters: {total_clusters}, Total crops: {total_crops}")
 
 
-MODEL_SOURCE = "v11_ckpt13k"  # "foundation_b16" | "v11_ckpt13k"
+MODEL_SOURCE = "v17_ckpt19750"  # "foundation_b16" | "v11_ckpt13k" | "v17_ckpt19750"
 
 # Maps each backbone source to its input/output filenames — NEVER use ternaries here.
 EMBEDDINGS_FILENAME_BY_MODEL = {
     "foundation_b16": "embeddings.npz",
     "v11_ckpt13k":    "embeddings_v2.npz",
+    "v17_ckpt19750":  "embeddings_v3.npz",
 }
 CLUSTERS_FILENAME_BY_MODEL = {
     "foundation_b16": "clusters.json",
     "v11_ckpt13k":    "clusters_v2.json",
+    "v17_ckpt19750":  "clusters_v3.json",
 }
 DISTANCES_FILENAME_BY_MODEL = {
     "foundation_b16": "crop_distances.json",
     "v11_ckpt13k":    "crop_distances_v2.json",
+    "v17_ckpt19750":  "crop_distances_v3.json",
 }
 EMBEDDINGS_FILENAME = EMBEDDINGS_FILENAME_BY_MODEL[MODEL_SOURCE]
 CLUSTERS_FILENAME = CLUSTERS_FILENAME_BY_MODEL[MODEL_SOURCE]

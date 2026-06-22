@@ -214,8 +214,8 @@ def main():
         output_dir="/data/AI/Tomer/dinov3/train_pictime/experiments",
         train_list="/data/AI/Tomer/dinov3/train_pictime/train_paths.txt",
         pretrained="/data/AI/Tomer/dinov3/dinov3/weights/dinov3_vits16_pretrain_lvd1689m-08c60483.pth",
-        resume=True,  # flip to True to resume from latest V-dir
-        a100=False,   # flip to True on the A100 VM to merge pictime_a100_overrides.yaml (bigger batch + workers)
+        resume=False,  # flip to True to resume from latest V-dir
+        a100=True,   # flip to True on the A100 VM to merge pictime_a100_overrides.yaml (bigger batch + workers)
     )
     if args.resume:
         args = use_latest_version_dir(args)

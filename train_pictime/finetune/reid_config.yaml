@@ -1,13 +1,14 @@
 # --- W&B ---
-wandb_project: "person-reid-finetune"
-experiment_tag: "face_blur_sf0.3_v11ckpt13k"    # short suffix appended to run name (e.g. "tau0.05"). null = no suffix
-experiment_group: "trial_face_blur"        # W&B group name for this trial (e.g. "trial1_tau_sweep"). null = ungrouped
+wandb_project: "person-reid-finetune-v2"
+experiment_tag: "v18Noblur"             # RUN 1 of the V17 p-sweep. Runs 2/3: "v17blur_p0.75", "v17blur_p1.0"
+experiment_group: "production_weights"  # all 3 V17 (face-blur) p-sweep runs share this group
 
 # --- Paths ---
 data_base_path: "/data/AI/Tomer/person_reid/dataset_utils/dataset_finetune/Portraits[26]"
-reid_index_filename: "reid_index_v2.npz"   # which index .npz to load (under data_base_path)
+reid_store_filename: "reid_store.pkl"      # project-keyed store (built by build_store.py) — replaces reid_index_*.npz
+reid_index_filename: "reid_index_v3.npz"   # legacy flat index (load_index); unused by the store path
 pretrain_config: "train_pictime/pictime_vitl_im1k_lin834.yaml"
-pretrained_weights: "/data/AI/Tomer/dinov3/train_pictime/experiments/V11/ckpt/13000"
+pretrained_weights: "/data/AI/Tomer/dinov3/train_pictime/experiments_V2/V18/ckpt/19750"  # V17 = face-blurred pretrain
 output_dir: "/data/AI/Tomer/dinov3/train_pictime/finetune_experiments"
 
 # --- Model ---
@@ -26,7 +27,7 @@ unfreeze_after: 1000         # iteration to unfreeze (0 = never)
 unfreeze_n_blocks: 6         # last N transformer blocks to unfreeze
 
 # --- Training ---
-num_epochs: 10
+num_epochs: 1                # v3 pool is ~16x bigger (4.9M samples) → 1 epoch is already many iters. VERIFY the "Iters per epoch" print at launch and adjust.
 P: 16                        # projects per batch (1 identity each)
 K: 4                         # crops per identity -> batch_size = P*K = 64
 num_workers: 4
@@ -48,18 +49,20 @@ arcface_classifier_wd: 0.0         # weight decay on classifier (0 = no WD; cosi
 seed: 42
 
 # --- Eval ---
-val_ratio: 0.05
+val_ratio: 0.008             # ~420 val projects on the v3 pool (~52K projects). 0.05 gave ~2.6K projects /
+                             # ~245K crops → eval similarity matrices OOM-killed the process on the 28GB T4
+                             # at the first eval (iter 500). 0.008 restores the old (working) eval-pool scale.
 silhouette_max_samples: 10000   # cap for stratified silhouette subsample (0 = skip)
 # Tiered eval: per-identity restrict val pool to top-T fraction closest to centroid.
 # Each tier produces its own mAP/Rank/silhouette (e.g. eval/mAP_top50). Set
 # eval_centroid_distances_filename to null to disable tiering and fall back to
 # single full-pool eval (legacy behavior).
 eval_tiers: [0.5, 0.75, 1.0]
-eval_centroid_distances_filename: "crop_distances_v2.json"
+eval_centroid_distances_filename: "crop_distances_v3.json"
 
 # --- Checkpointing ---
-ckpt_every: 500
-ckpt_max_keep: 3             # keep best 3 by eval metric (mAP), not most recent
+ckpt_every: 999             # eval+ckpt cadence. Epoch is ~25K iters → ~25 evals; 500 doubled eval cost for little signal.
+ckpt_max_keep: 1             # keep best 3 by eval metric (mAP), not most recent
 
 # --- Curriculum sampler (per-identity centroid-based) ---
 # When enabled: at each iter t, the sampler restricts each identity's pool to
@@ -69,11 +72,16 @@ ckpt_max_keep: 3             # keep best 3 by eval metric (mAP), not most recent
 # fixed-fraction ablation control. Set p_start=p_end=1.0 (or enabled=false)
 # for vanilla sampling.
 curriculum:
-  enabled: false
-  p_start: 0.5
-  p_end: 0.8
+  enabled: true
+  mode: "per_project"          # "per_project" (current) | "ramp" (legacy global p(t))
+  # --- per_project mode: static p by labeled-ness (from the store's labeled flags) ---
+  p_labeled: 1.0               # reviewer-trusted projects (clusters_fixed) → use all crops
+  p_unlabeled: 0.75            # HDBSCAN-labeled projects → top-75% closest to centroid
+  # --- ramp mode (legacy; ignored when mode=per_project) ---
+  p_start: 1.0
+  p_end: 1.0
   end_frac: 0.7
-  centroid_distances_filename: "crop_distances_v2.json"
+  centroid_distances_filename: "crop_distances_v3.json"  # eval path only; train uses the store's distances
 
 # --- Face blur (Trial 3) ---
 # When enabled: Gaussian-blur every face region inside each body crop before
@@ -84,6 +92,6 @@ curriculum:
 # original-image pixels (before Resize), so the blur is invariant to image
 # resolution and survives the downstream resize.
 face_blur:
-  enabled: true
+  enabled: false
   sigma_factor: 0.3
   faces_filename: "faces.json"

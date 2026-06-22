@@ -22,3 +22,6 @@ train_pictime/my_prompt
 # Local-only session continuity files (everything else under .work/ is tracked)
 .work/parked.md
 .work/handoff.md
+
+train_pictime/model_comparison/results
+train_pictime/finetune/fracturing_eval/results
