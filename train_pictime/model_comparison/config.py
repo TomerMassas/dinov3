@@ -22,8 +22,13 @@ IMAGES_SUBDIR = "images"
 # i.e. the richest galleries for a ReID/clustering comparison.
 HERE = Path(__file__).parent
 COMPLETION_LOG = HERE / "completion_log.json"           # approved-project metadata (num_crops, num_clusters)
-TOP_N = 200
-NEW_PROJECTS_FILE = HERE / "new_projects.json"          # locked test set (the selected TOP_N)
+TOP_N = None #200
+
+# Names this test set — drives both the results subdir and the project-ids file,
+# so different test sizes/compositions sit side by side under results/.
+TEST_SET_NAME = "all_approved"
+OUTPUT_DIR = HERE / "results" / TEST_SET_NAME           # all artifacts for this test set
+NEW_PROJECTS_FILE = OUTPUT_DIR / f"proj_ids_{TEST_SET_NAME}.json"   # locked test set (TOP_N)
 
 # --- GT filtering (match fracturing_eval) ---
 MIN_GT_CLUSTER_SIZE = 5    # drop GT clusters smaller than this; GT cluster_id == -1 always dropped
@@ -71,7 +76,6 @@ NUM_WORKERS = 4
 SILHOUETTE_MAX_SAMPLES = 10000
 SEED = 42
 
-# --- Output ---
-OUTPUT_DIR = HERE / "results"
+# --- Output (caches live alongside results in the per-test-set dir) ---
 OLD_CACHE = OUTPUT_DIR / "old_embeddings.npz"
 NEW_CACHE = OUTPUT_DIR / "new_embeddings.npz"

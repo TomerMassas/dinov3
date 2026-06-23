@@ -29,7 +29,7 @@ from train_pictime.model_comparison import models as M
 
 # Which model to embed this run: "new" (DINOv3 ViT-S/16) | "old" (ResNet CTL).
 # Flip and re-run to produce the other cache.
-MODEL = "old" # "new"
+MODEL = "new" # "new", "old"
 
 
 def build_entries() -> list[tuple]:

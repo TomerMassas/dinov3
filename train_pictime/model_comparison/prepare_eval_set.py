@@ -46,14 +46,14 @@ def main():
         proj = C.DATASET_ROOT / r["project_id"]
         if (proj / C.CLUSTERS_FIXED_FILENAME).exists() and (proj / C.DETECTIONS_FILENAME).exists():
             selected.append(r)
-            if len(selected) >= C.TOP_N:
+            if C.TOP_N is not None and len(selected) >= C.TOP_N:
                 break
         else:
             missing.append(r["project_id"])
     if missing:
-        print(f"[WARN] {len(missing)} high-ranked projects skipped (no clusters_fixed/detections on disk), "
+        print(f"[WARN] {len(missing)} approved projects skipped (no clusters_fixed/detections on disk), "
               f"e.g. {missing[:5]}")
-    if len(selected) < C.TOP_N:
+    if C.TOP_N is not None and len(selected) < C.TOP_N:
         print(f"[WARN] only {len(selected)} projects available (< TOP_N={C.TOP_N})")
 
     lo, hi = selected[-1]["ratio"], selected[0]["ratio"]
@@ -68,6 +68,7 @@ def main():
         "ratio_range": [lo, hi],
         "details": selected,
     }
+    C.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     tmp = str(C.NEW_PROJECTS_FILE) + ".tmp"
     with open(tmp, "w") as f:
         json.dump(payload, f, indent=2)

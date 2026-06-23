@@ -143,6 +143,22 @@ def write_report(results: dict, n_crops: int, n_ids: int):
             name = label.split(" (")[0]   # strip the "(higher=better)" hint
             lines.append(f"- **{name}** — {METRIC_DESC[key]}")
 
+    # Test-set gallery-size distribution (separate artifact from gt_cluster_size_hist.py).
+    lines.append("")
+    lines.append("## Test-set gallery-size distribution")
+    lines.append("")
+    hist_png = C.OUTPUT_DIR / "gt_cluster_size_hist.png"
+    if not hist_png.exists():
+        try:
+            from train_pictime.model_comparison.gt_cluster_size_hist import build_histogram
+            build_histogram(show=False)
+        except Exception as e:
+            print(f"[WARN] could not generate {hist_png.name}: {e}")
+    if hist_png.exists():
+        lines.append(f"![GT cluster-size distribution]({hist_png.name})")
+    else:
+        lines.append("_(gt_cluster_size_hist.png unavailable)_")
+
     md = "\n".join(lines)
     (C.OUTPUT_DIR / "comparison.md").write_text(md + "\n")
     print("\n" + md + "\n")
