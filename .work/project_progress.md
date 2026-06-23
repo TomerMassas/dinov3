@@ -985,3 +985,92 @@ rank-1's violin — flagged, not changed yet.
   viewer rebuild (from 2026-05-12), Trial 2 `experiment.md` write-up,
   pink V13 missing ckpts root cause, `BestCheckpointTracker` metric
   switch.
+
+## 2026-06-23
+
+### Checkpoint save: best + last (`finetune_reid.py`)
+
+Replaced `BestCheckpointTracker` (best-N by silhouette) with
+`CheckpointManager` keeping exactly two files at all times: `ckpt_iter{N}_sil{S}.pt`
+(the single best — name unchanged so `find_best_silhouette_ckpt` and all
+downstream eval keep matching exactly the best) and `last_iter{N}_sil{S}.pt`
+(rolling most-recent, distinct prefix ignored by the `ckpt_iter*` glob). Both
+written every eval; final eval makes `last` the final state. `ckpt_max_keep`
+left in config, unused.
+
+### OLD ResNet vs NEW ViT-S/16 comparison — `train_pictime/model_comparison/` (new, isolated)
+
+Built a full, self-contained comparison framework to show the deployed V44
+ViT-S/16 (128-d) beats the old production ResNet (2048-d) on the reviewer-labeled
+galleries. Decisions locked via a 4-question intake.
+
+Key finding from the **IdentityClustering** repo (pic-time, read via `gh`):
+production body clustering is **Agglomerative** (`distance_threshold=0.85`,
+average linkage, euclidean-on-normalized, + cosine<0.2 centroid merge) — NOT
+HDBSCAN (HDBSCAN is the *face* path). The repo's `config.py` already has
+`body_embedding_size: 128` / `body_emb_size {2:128}` — it's pre-migrated for our
+new embeddings. So comparison = production-old (ResNet+Agglom@0.85) vs tuned-new
+(ViT+HDBSCAN); not apples-to-apples by design, Tomer approved.
+
+Files: `config.py` (single source of truth), `prepare_eval_set.py`
+(test-set selection), `models.py` (old reid_src CTL loader via sys.path +
+new ViT loader), `clustering.py` (agglom + hdbscan), `metrics.py`,
+`embed.py` (per-model cache, hardcoded `MODEL` constant), `evaluate.py`
+(report + plots), `report.py` (re-render from results.json), plus the two
+diagnostics below.
+
+Metrics, two families: **embedding quality** (silhouette cosine, mAP — later
+trimmed to silhouette only per Tomer); **clustering quality** computed
+**ignoring predicted noise (-1) entirely** (drop `-1` crops, score only
+assigned) — mean fracturing, % perfectly grouped, **cluster-level**
+precision/recall (dominant-identity matching, NOT pairwise — Tomer's call),
+completeness, homogeneity, ARI, and `cluster_count_delta` (mean pred-true
+clusters per project; sign = over/under-cluster).
+
+Env fixes along the way: `pip install yacs` (only missing dep for old
+`reid_src`); old weights from `models_v1.zip` (the SAS curl initially saved a
+223-byte error body -> `-fL`); old `reid_model.pt` cache truncated at 5.3 MB
+(should be ~390 MB for 2048-d) -> re-embed.
+
+### HDBSCAN param optimizer — `optimize_hdbscan.py`
+
+One-param-at-a-time sweep on the cached NEW embeddings; plots all metrics vs the
+swept value (left [0,1] axis; fracturing + `cluster_count_delta` on right axis
+with a zero line), marks best by `OBJECTIVE`. Wired all HDBSCAN knobs through
+`config.NEW_CLUSTER` + `cluster_hdbscan` (`min_samples`,
+`cluster_selection_epsilon`, `cluster_selection_method`, `allow_single_cluster`).
+Switched to the standalone `hdbscan` package (sklearn's crashes on
+epsilon>0 + allow_single_cluster — and it's what production uses).
+
+**Key insight:** initial epsilon sweep said 0.5 was "dramatically best" — but
+that's the merge-everything artifact (recall/completeness/fracturing all reward
+collapsing to one cluster; only homogeneity penalizes it). Switched the sweep
+OBJECTIVE to **ARI** (chance-corrected, punishes merging *and* splitting, can't
+be gamed by collapse) and added homogeneity + cluster-count-delta diagnostics.
+
+### GT cluster-size histogram — `gt_cluster_size_hist.py`
+
+Tomer noticed metrics improve as `min_cluster_size` 3->10 and suspected test-set
+bias. Histogram of GT identity sizes confirms it: top-200-by-crops/clusters is
+skewed to big galleries, so a high floor noises out the few small identities and
+you score only easy big ones. `build_histogram()` is reusable — `evaluate.py`
+auto-generates it if missing and embeds it in `comparison.md`.
+
+### Per-test-set results dir restructure
+
+`TEST_SET_NAME` in config now drives `results/<name>/` holding the proj-ids file
+(`proj_ids_<name>.json`, was `new_projects.json`), both caches, and all outputs —
+so multiple test sets sit side by side. `prepare_eval_set.py` supports
+`TOP_N=None` (all approved). Current sets: `200_biggest` (done) and `all_approved`
+(814 approved+valid projects, in progress).
+
+### Open / carried forward
+
+- Run the full comparison on `all_approved` (embed new + old, then evaluate) to
+  see how much of the `min_cluster_size` gain was the 200_biggest bias.
+- HDBSCAN params still being tuned (sweep each knob via `optimize_hdbscan`, lock
+  into `config.NEW_CLUSTER`); greedy one-at-a-time, may need a re-sweep pass.
+- The `1e-12` epsilon in `build_store._compute_distances` vs `build_centroids`
+  parity — still unresolved (from prior session).
+- Carried (still): Wedding[1] HTML viewer, Trial 2 `experiment.md`, pink V13
+  missing ckpts, store pipeline VM end-to-end test.
