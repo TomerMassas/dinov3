@@ -102,6 +102,10 @@ DISPLAY = {
 # (mean fracturing ~1-3; count delta is a signed count) would distort the [0,1] bars.
 PLOT_EXCLUDE = {"cluster_count_delta", "fracturing_mean"}
 GROUP_TITLE = {"A": "Embedding quality", "B": "Clustering quality"}
+# Groups rendered in comparison.md + plotted. Embedding quality (A) is still
+# computed into results.json but not shown — add "A" back here to surface it.
+REPORT_GROUPS = ("B",)
+PLOT_FNAME = {"A": "plot_embedding_quality.png", "B": "plot_clustering_quality.png"}
 
 # One-line description per displayed metric, for the legend at the bottom of the table.
 METRIC_DESC = {
@@ -124,7 +128,18 @@ def write_report(results: dict, n_crops: int, n_ids: int):
 
     col_old, col_new = "OLD (ResNet)", "NEW (ViT-S16)"
     lines = [f"# OLD ResNet vs NEW ViT-S/16 — {n_crops} crops, {n_ids} identities", ""]
-    for grp in ("A", "B"):
+
+    # New-model provenance table (one row per training stage).
+    lines.append("## New model ViT-S16 — Training Info")
+    lines.append("")
+    info_cols = list(next(iter(C.NEW_MODEL_INFO.values())).keys())   # derive columns from first row
+    lines.append("| stage | " + " | ".join(info_cols) + " |")
+    lines.append("|" + "---|" * (len(info_cols) + 1))
+    for stage, row in C.NEW_MODEL_INFO.items():
+        lines.append(f"| {stage} | " + " | ".join(str(row.get(c, "")) for c in info_cols) + " |")
+    lines.append("")
+
+    for grp in REPORT_GROUPS:
         lines.append(f"## {GROUP_TITLE[grp]}")
         lines.append("")
         lines.append(f"| metric | {col_old} | {col_new} |")
@@ -138,7 +153,7 @@ def write_report(results: dict, n_crops: int, n_ids: int):
     lines.append("---")
     lines.append("**Legend**")
     lines.append("")
-    for grp in ("A", "B"):
+    for grp in REPORT_GROUPS:
         for label, key in DISPLAY[grp]:
             name = label.split(" (")[0]   # strip the "(higher=better)" hint
             lines.append(f"- **{name}** — {METRIC_DESC[key]}")
@@ -163,8 +178,9 @@ def write_report(results: dict, n_crops: int, n_ids: int):
     (C.OUTPUT_DIR / "comparison.md").write_text(md + "\n")
     print("\n" + md + "\n")
 
-    # Bar plots — one per group, only the displayed metrics.
-    for grp, fname in [("A", "plot_embedding_quality.png"), ("B", "plot_clustering_quality.png")]:
+    # Bar plots — one per rendered group, only the displayed metrics.
+    for grp in REPORT_GROUPS:
+        fname = PLOT_FNAME[grp]
         # Non-[0,1] metrics (cluster counts, mean fracturing) are table-only.
         items = [(lbl, k) for lbl, k in DISPLAY[grp] if k not in PLOT_EXCLUDE]
         labels = [lbl for lbl, _ in items]

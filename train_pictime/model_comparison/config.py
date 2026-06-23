@@ -49,6 +49,23 @@ OLD_CLUSTER = dict(
 # --- NEW model: DINOv3 ViT-S/16 finetune (deployed V44), 128-d, L2-normalized ---
 NEW_CKPT = PERSON_REID_REPO / "models" / "ckpt_iter15000_sil0.4556.pt"   # backbone+proj_head state dicts
 PICTIME_CFG = DINOV3_REPO / "train_pictime/pictime_vitl_im1k_lin834.yaml"
+# New-model provenance, rendered as a table in comparison.md (one row per training
+# stage). Update per checkpoint so each report self-documents which model it scored.
+# Columns are derived from the first row's keys, so keep keys consistent across rows.
+NEW_MODEL_INFO = {
+    "backbone (SSL pretrain)": {
+        "method":     "DINOv3 self-supervised (ViT-S/16)",
+        "data":       "Pictime pretrain images, NO face-blur (V18 line)",
+        "labels":     "none (self-supervised)",
+        "checkpoint": "V18, ckpt 19750",
+    },
+    "finetune (metric learning)": {
+        "method":     "SupCon, PK sampling (P16×K4), progressive unfreeze",
+        "data":       "full finetune set − reviewer-held-out",
+        "labels":     "HDBSCAN clusters_v3 (pseudo, NOT reviewer truth)",
+        "checkpoint": "V44 ckpt_iter15000",
+    },
+}
 NEW_EMB_DIM = 128
 PROJ_HIDDEN_DIM = 384
 PROJ_OUTPUT_DIM = 128
@@ -61,7 +78,7 @@ BACKBONE_WHICH = "teacher"
 NEW_CLUSTER = dict(
     method="hdbscan",
     min_cluster_size=10,
-    min_samples=10,
+    min_samples=None,# None--> min_samples=min_cluster_size # how aggressively things get called noise, low min_samples tries to keep every crop but risks chaining one person's crop into a different person's cluster
     cluster_selection_epsilon=0.1, # 1 mergre all into 1 cluster, 0 pure hdbscan (0,1) playground for decreasing fracturing effect
     cluster_selection_method="eom", # eom, leaf
     allow_single_cluster=True,

@@ -25,8 +25,8 @@ from train_pictime.model_comparison.clustering import cluster
 from train_pictime.model_comparison.metrics import clustering_metrics
 
 # --- What to sweep this run (one param) ---
-SWEEP_PARAM = "min_samples"
-SWEEP_VALUES = [1, 2, 3, 5, 10]
+SWEEP_PARAM = "cluster_selection_epsilon"
+SWEEP_VALUES = [0.0, 0.08, 0.09, 0.1, 0.11, 0.2, 0.5]
 # Suggested value lists per param (copy into SWEEP_VALUES):
 #   min_cluster_size           : [2, 3, 4, 5, 8, 10]
 #   min_samples                : [1, 2, 3, 5]

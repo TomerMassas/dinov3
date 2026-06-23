@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from train_pictime.model_comparison import config as C
-from train_pictime.model_comparison.evaluate import write_report, DISPLAY
+from train_pictime.model_comparison.evaluate import write_report, DISPLAY, REPORT_GROUPS
 
 
 def main():
@@ -30,7 +30,7 @@ def main():
 
     # Guard against a stale results.json (older metric set) — fail with guidance
     # rather than a cryptic KeyError mid-render.
-    missing = [key for grp in ("A", "B") for _, key in DISPLAY[grp]
+    missing = [key for grp in REPORT_GROUPS for _, key in DISPLAY[grp]
                if key not in results.get(grp, {}).get("old", {})]
     if missing:
         raise RuntimeError(
