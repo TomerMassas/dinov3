@@ -15,9 +15,9 @@ browser.
 
 Usage:
     python3 -m train_pictime.finetune.realworld_eval.build_html_viewer
+    run this to streem the VM port: "ssh -L 8080:127.0.0.1:8080 azureuser@10.0.32.13"
 """
-# run this to streem the VM port
-# ssh -L 8080:127.0.0.1:8080 azureuser@10.0.32.13
+
 from __future__ import annotations
 
 import html

@@ -9,10 +9,13 @@ pointing at V31 while the other still points at V28).
 # Ckpt + paths
 # ---------------------------------------------------------------------------
 
-# Trial 2 winner: n_blocks=6, lr_backbone=1e-4 on V11/ckpt/13000. From the
-# V<n> dir, `find_best_silhouette_ckpt` picks the highest-silhouette of
-# the saved best-3 ckpts.
-FINETUNE_VERSION_DIR = "/data/AI/Tomer/dinov3/train_pictime/finetune_experiments/V31"
+# New model: V51 finetune (ViT-S/16). From the V<n> dir, `find_best_silhouette_ckpt`
+# picks the highest-silhouette of the saved ckpt_iter*_sil*.pt checkpoints.
+FINETUNE_VERSION_DIR = "/data/AI/Tomer/dinov3/train_pictime/finetune_experiments/V51"
+
+# Optionally pin an EXACT ckpt — e.g. a `last_iter*` file, which find_best_silhouette_ckpt
+# won't match (it only globs ckpt_iter*_sil*.pt). None -> auto-pick the best ckpt.
+FINETUNE_CKPT_PATH = "/data/AI/Tomer/dinov3/train_pictime/finetune_experiments/V51/ckpt/last_iter26274_sil0.4679.pt"
 
 # Flip TEST_SET_NAME to switch test sets. Each test set lives under its own
 # subdir of OUTPUT_BASE so they coexist without collision.
@@ -37,11 +40,16 @@ MIN_BBOXES = 0
 
 
 # ---------------------------------------------------------------------------
-# HDBSCAN — identical to train_pictime/cluster_embeddings.py
+# HDBSCAN — tuned new-model params (matches model_comparison/config.py NEW_CLUSTER).
+# cluster_selection_epsilon>0 + allow_single_cluster=True requires the standalone
+# `hdbscan` package (sklearn's HDBSCAN crashes on that combo).
 # ---------------------------------------------------------------------------
 
 HDBSCAN_MIN_CLUSTER_SIZE = 3
-HDBSCAN_MIN_SAMPLES = None
+HDBSCAN_MIN_SAMPLES = None                  # None -> uses min_cluster_size
+HDBSCAN_CLUSTER_SELECTION_EPSILON = 0.1     # merges over-split sub-clusters (anti-fracturing)
+HDBSCAN_CLUSTER_SELECTION_METHOD = "eom"    # "eom" (fewer/larger) | "leaf" (more/finer)
+HDBSCAN_ALLOW_SINGLE_CLUSTER = False# True         # single-identity gallery -> one cluster, not all-noise
 HDBSCAN_METRIC = "euclidean"
 
 

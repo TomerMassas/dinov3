@@ -41,10 +41,14 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+# Prefer the standalone hdbscan package — sklearn's HDBSCAN crashes on
+# cluster_selection_epsilon>0 + allow_single_cluster=True (the tuned config).
 try:
-    from sklearn.cluster import HDBSCAN
-except ImportError:
     from hdbscan import HDBSCAN
+    _HDBSCAN_PKG = "hdbscan"
+except ImportError:
+    from sklearn.cluster import HDBSCAN
+    _HDBSCAN_PKG = "sklearn"
 
 from dinov3.configs import setup_job
 from train_pictime.finetune.finetune_reid import (
@@ -53,10 +57,11 @@ from train_pictime.finetune.finetune_reid import (
 from train_pictime.finetune.reeval_tiered import find_best_silhouette_ckpt
 from train_pictime.finetune.reid_dataset import get_val_transform
 from train_pictime.finetune.realworld_eval.config import (
-    BATCH_SIZE, DATASET_ROOT, EXCLUDE_FILE, FINETUNE_VERSION_DIR,
-    HDBSCAN_METRIC, HDBSCAN_MIN_CLUSTER_SIZE, HDBSCAN_MIN_SAMPLES,
-    MIN_BBOXES, N_SAMPLE, NUM_WORKERS, OUTPUT_BASE, SEED, TEST_SET_NAME,
-    VIEWER_CROP_JPEG_QUALITY, VIEWER_CROP_MAX_EDGE,
+    BATCH_SIZE, DATASET_ROOT, EXCLUDE_FILE, FINETUNE_CKPT_PATH, FINETUNE_VERSION_DIR,
+    HDBSCAN_ALLOW_SINGLE_CLUSTER, HDBSCAN_CLUSTER_SELECTION_EPSILON,
+    HDBSCAN_CLUSTER_SELECTION_METHOD, HDBSCAN_METRIC, HDBSCAN_MIN_CLUSTER_SIZE,
+    HDBSCAN_MIN_SAMPLES, MIN_BBOXES, N_SAMPLE, NUM_WORKERS, OUTPUT_BASE, SEED,
+    TEST_SET_NAME, VIEWER_CROP_JPEG_QUALITY, VIEWER_CROP_MAX_EDGE,
 )
 
 
@@ -226,12 +231,21 @@ def embed_project(backbone, proj_head, dataset: ProjectCropDataset, device: str)
 
 
 def cluster_embeddings_hdbscan(embeddings: np.ndarray) -> np.ndarray:
-    """Same params as train_pictime/cluster_embeddings.py."""
+    """Tuned new-model params (matches model_comparison/config.py NEW_CLUSTER)."""
     n = len(embeddings)
     if n < 2:
         return np.array([-1] * n, dtype=int)
+    if _HDBSCAN_PKG == "sklearn" and HDBSCAN_CLUSTER_SELECTION_EPSILON > 0 and HDBSCAN_ALLOW_SINGLE_CLUSTER:
+        raise RuntimeError(
+            "sklearn HDBSCAN can't combine cluster_selection_epsilon>0 with "
+            "allow_single_cluster=True (known bug). Install the hdbscan package: "
+            "`pip install hdbscan`."
+        )
     clusterer = HDBSCAN(min_cluster_size=HDBSCAN_MIN_CLUSTER_SIZE,
                         min_samples=HDBSCAN_MIN_SAMPLES,
+                        cluster_selection_epsilon=float(HDBSCAN_CLUSTER_SELECTION_EPSILON),
+                        cluster_selection_method=HDBSCAN_CLUSTER_SELECTION_METHOD,
+                        allow_single_cluster=HDBSCAN_ALLOW_SINGLE_CLUSTER,
                         metric=HDBSCAN_METRIC,
                        )
     return clusterer.fit_predict(embeddings)
@@ -301,11 +315,19 @@ def main():
     setup_job(output_dir=None, seed=cfg.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # --- Find best finetune ckpt ---
-    ckpt_dir = Path(FINETUNE_VERSION_DIR) / "ckpt"
-    if not ckpt_dir.exists():
-        raise FileNotFoundError(f"FINETUNE_VERSION_DIR has no ckpt/: {ckpt_dir}")
-    ckpt_path, it, train_sil = find_best_silhouette_ckpt(ckpt_dir)
+    # --- Find / pin finetune ckpt ---
+    if FINETUNE_CKPT_PATH:
+        ckpt_path = Path(FINETUNE_CKPT_PATH)
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"FINETUNE_CKPT_PATH not found: {ckpt_path}")
+        m = re.search(r"iter(\d+)_sil([0-9]+\.[0-9]+)", ckpt_path.name)
+        it = int(m.group(1)) if m else 0
+        train_sil = float(m.group(2)) if m else 0.0
+    else:
+        ckpt_dir = Path(FINETUNE_VERSION_DIR) / "ckpt"
+        if not ckpt_dir.exists():
+            raise FileNotFoundError(f"FINETUNE_VERSION_DIR has no ckpt/: {ckpt_dir}")
+        ckpt_path, it, train_sil = find_best_silhouette_ckpt(ckpt_dir)
     version_name = Path(FINETUNE_VERSION_DIR).name
     output_dir = Path(OUTPUT_BASE) / TEST_SET_NAME / f"{version_name}_iter{it}_sil{train_sil:.4f}"
     print(f"\nFinetune ckpt:  {ckpt_path}")
