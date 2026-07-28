@@ -46,10 +46,10 @@ MIN_BBOXES = 0
 # ---------------------------------------------------------------------------
 
 HDBSCAN_MIN_CLUSTER_SIZE = 3
-HDBSCAN_MIN_SAMPLES = None                  # None -> uses min_cluster_size
-HDBSCAN_CLUSTER_SELECTION_EPSILON = 0.1     # merges over-split sub-clusters (anti-fracturing)
-HDBSCAN_CLUSTER_SELECTION_METHOD = "eom"    # "eom" (fewer/larger) | "leaf" (more/finer)
-HDBSCAN_ALLOW_SINGLE_CLUSTER = False# True         # single-identity gallery -> one cluster, not all-noise
+HDBSCAN_MIN_SAMPLES = None
+HDBSCAN_CLUSTER_SELECTION_EPSILON = 0.1
+HDBSCAN_CLUSTER_SELECTION_METHOD = "eom"
+HDBSCAN_ALLOW_SINGLE_CLUSTER = False# True
 HDBSCAN_METRIC = "euclidean"
 
 

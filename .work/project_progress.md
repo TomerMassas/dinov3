@@ -1074,3 +1074,133 @@ so multiple test sets sit side by side. `prepare_eval_set.py` supports
   parity — still unresolved (from prior session).
 - Carried (still): Wedding[1] HTML viewer, Trial 2 `experiment.md`, pink V13
   missing ckpts, store pipeline VM end-to-end test.
+
+## 2026-06-24 — Real-world eval on V51 + wedding labeling prep
+
+### Model-comparison report — late refinements (cont. from 06-23)
+
+- Trimmed `comparison.md` to clustering-quality only: `REPORT_GROUPS=("B",)` drops
+  the embedding-quality table + `plot_embedding_quality.png` (silhouette/mAP still
+  computed into results.json, just not shown).
+- Added a `NEW_MODEL_INFO` provenance table (backbone + finetune rows: method /
+  data / labels / checkpoint) rendered at the top of the report, so each run
+  self-documents which ckpt produced it — for the upcoming ckpt-vs-ckpt compares.
+
+### V44 train/test contamination check
+
+`all_approved` (814) vs V44's denylist (`approved_projects.json`, 709):
+**709 clean (held out), 105 seen during training** — they were approved *after*
+V44 trained, so at train time they had no clusters_fixed and V44 trained on them
+with `clusters_v3` HDBSCAN pseudo-labels. Verdict (Tomer): acceptable — no label
+leakage (trained on HDBSCAN labels, scored on reviewer truth) and 105/~50K
+training share -> no memorization. Left `all_approved` as-is.
+
+### Standalone clustering script for the labeling teammate — `cluster_bodies.py`
+
+Self-contained (`numpy` + `hdbscan` only, no repo/config) `cluster_bodies(embeddings)`
+with defaults = `NEW_CLUSTER`. Sent to Tomer to forward. (lives in scratchpad)
+
+### Real-world eval re-run on V51 — and the key clustering insight
+
+Pointed `realworld_eval` at V51; added a `FINETUNE_CKPT_PATH` override to pin an
+exact ckpt (`find_best_silhouette_ckpt` only globs `ckpt_iter*_sil*.pt`, so it
+can't pick V51's chosen `last_iter26274_sil0.4679.pt`). Set realworld_eval HDBSCAN
+to the tuned `NEW_CLUSTER` params; flipped the import to prefer the `hdbscan` package.
+
+**All galleries came back 0 clusters / all-noise.** Debug chain:
+1. `min_cluster_size=10` is wrong for weddings — weddings have MANY guests with FEW
+   photos each (small per-identity clusters), the *opposite* of the Portraits
+   "biggest galleries" the params were tuned on. Dropped to 3.
+2. Still mostly noise at mcs=3 -> isolated to **`allow_single_cluster=True`**: on a
+   multi-identity wedding it fits ~one loose root cluster and dumps everyone outside
+   its core to noise -> 0-1 clusters + rest noise. `=False` fixed it (V44 test clean).
+
+**Insight (important): the HDBSCAN tuning is domain-specific and does NOT transfer.**
+`allow_single_cluster=True` + `mcs=10` suit single-dominant-identity Portraits
+galleries but are catastrophic on weddings; weddings need `mcs=3` +
+`allow_single_cluster=False`. Keep params per domain.
+
+Caveat flagged: the good run changed BOTH model (V51->V44) and the flag, so the clean
+one-variable confirmation — V51 + `allow_single_cluster=False`, same `last_iter26274`
+ckpt, delete the clusters dir first — is the pending step. If V51-last is still worse
+than V44, the iter-26274 "last" ckpt may be overfit (vs V51's best, or V44).
+
+Bug fixes: ckpt sil-parse regex `[\d.]+` grabbed the trailing dot (`0.4679.`) ->
+`[0-9]+\.[0-9]+`; `http.server` port typo `808` (privileged) -> 8080; truncated
+`old_embeddings.npz` (5.3 MB vs ~390 MB, interrupted write — disk wasn't full) -> re-embed.
+
+### Wedding labeling prep — `prep_labeling_files.py` (NEW)
+
+Generates the per-project labeling files for `Wedding[1]` using the *same* finetune
+model + tuned HDBSCAN as the HTML view (reuses realworld_eval's embed + cluster +
+config — single source of truth). Per project writes `embeddings_<tag>.npz`,
+`clusters_<tag>.json`, `crop_distances_<tag>.json` (tag = version-dir name, e.g.
+`v51`) into the dataset dir. Skips `clusters_fixed.json` + already-done; no crop
+JPGs (UI crops on-the-fly). Replicates `build_centroids` distance math in-memory.
+Decisions: `_v51` tag, crops on-the-fly, save embeddings (retrain-ready for `build_store`).
+
+### Open / carried forward
+
+- **Confirm V51 + `allow_single_cluster=False` in the viewer** (clean one-variable
+  test vs the good V44 run); decide V51-last vs V51-best vs V44 if V51-last looks overfit.
+- **Run `prep_labeling_files.py` on `Wedding[1]`** (set realworld_eval/config to the
+  chosen V51 ckpt first) -> hand to labeling team -> their `clusters_fixed.json` feeds
+  `build_store` next cycle.
+- Domain-specific HDBSCAN: `NEW_CLUSTER` (mcs=10, allow_single=True) is Portraits-tuned;
+  weddings use mcs=3 + allow_single=False.
+- **Uncommitted:** this session's edits + both progress entries aren't committed yet
+  (earlier /session-end commit skipped at Tomer's request).
+- Carried (still): `all_approved` full comparison run, `1e-12` epsilon parity,
+  Trial 2 `experiment.md`, pink V13 ckpts, store pipeline VM end-to-end test.
+
+## 2026-06-30 — Global config (effort/model) + onboarding new wedding galleries
+
+### Global Claude config — effort & model
+
+- **Discovery:** this install's config dir is `CLAUDE_CONFIG_DIR=~/.claude-work` (why
+  auto-memory + settings live under `~/.claude-work/`, not `~/.claude/`). Live global
+  settings = `~/.claude-work/settings.json`.
+- `effortLevel: "xhigh"` was already set there (max-effort default already global). The
+  persisted `effortLevel` enum only accepts low/medium/high/xhigh — **no storable `"max"`**;
+  "max" is a session-only `/effort` toggle above xhigh.
+- Adding `"model": "opus"` to `~/.claude-work/settings.json` was **rejected** -> global
+  default model still unset. Revisit if opus-by-default is wanted.
+- Cleanup owed: `~/.claude/settings.json` (the UNUSED file for this install — not read,
+  since config dir is `.claude-work`) got `model: opus` + `effortLevel: xhigh` written by
+  mistake; original was `model: sonnet`, no effortLevel. Revert it.
+
+### Onboarding new galleries into Wedding[1] (new: 52544230, 52544256)
+
+New projects arrive with only `images/`. Pipeline to make them labeling-ready +
+old-vs-new-comparable:
+1. **Detection** — lives in the **person-reID** repo (`body_detection_src/detect_body.py`,
+   `Yolo11PersonDetector`, `yolo11m.pt`), NOT dinov3 (dinov3 only *reads* `detections.json`).
+   No offline folder-batch runner in-repo (only a test `__main__` + the prod
+   `process_request.py` queue). Output `{filename:[{"bbox":[x1,y1,x2,y2] norm,"conf":..}]}`
+   — matches every dinov3 reader. Tomer ran detection himself.
+2. **New-model files** — `prep_labeling_files.py` -> `embeddings_v51.npz` /
+   `clusters_v51.json` / `crop_distances_v51.json` per project; walks all of Wedding[1]
+   but skip-if-exists, so re-running only does the 2 new ones.
+3. **Old-model embeddings** — `embed_old_wedding.py` (NEW).
+
+### `embed_old_wedding.py` (NEW, model_comparison/) + a latent bug found
+
+Embeds the 2 projects with the OLD ResNet over ALL detected crops (2048-d, raw) ->
+`embeddings_resnet.npz` per project (reuses `model_comparison.models` old
+loader/transform/forward). **Bug caught:** the existing `ProjectCropDataset`/`CropDataset`
+use a fixed `(3,224,224)` invalid-crop placeholder — matches the *new* transform but
+mismatches the old `Resize(256,128)`, so a batch mixing valid+invalid crops would crash
+collate. Never bit the Portraits GT run (clean crops); could bite raw wedding detections.
+New script uses a placeholder matching `OLD_RESIZE_HW`.
+
+### Open / carried forward
+
+- **Global model default:** decide opus-by-default (the `~/.claude-work` edit was rejected)
+  and revert the stray `~/.claude/settings.json` edits.
+- On the 2 new projects: detection -> `prep_labeling_files.py` -> `embed_old_wedding.py`.
+- Still pending: confirm V51 + `allow_single_cluster=False` in the viewer; run
+  `prep_labeling_files.py` on full Wedding[1] -> labeling team.
+- **Uncommitted:** several sessions' edits (model_comparison, realworld_eval,
+  prep_labeling_files, embed_old_wedding) + 3 progress entries still not committed.
+- Carried (still): `all_approved` full comparison, `1e-12` epsilon parity, Trial 2
+  `experiment.md`, pink V13 ckpts, store pipeline VM end-to-end test.
