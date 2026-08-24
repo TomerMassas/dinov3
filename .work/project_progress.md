@@ -1204,3 +1204,393 @@ New script uses a placeholder matching `OLD_RESIZE_HW`.
   prep_labeling_files, embed_old_wedding) + 3 progress entries still not committed.
 - Carried (still): `all_approved` full comparison, `1e-12` epsilon parity, Trial 2
   `experiment.md`, pink V13 ckpts, store pipeline VM end-to-end test.
+
+## 2026-07-27/28 — Body-part fragment classifier built (`classifier_body_parts/`)
+
+New self-contained package to filter "meaningless" body crops (a hand, a leg, a
+torso sliver) BEFORE ReID clustering, so clusters stop being polluted by crops
+carrying no identity signal. Tomer labels; this is the training/inference side.
+
+### Design decisions
+
+- **Rejected raising the YOLO conf threshold** (Tomer's option 1). conf answers
+  "is this a person, is the box tight", not "is this crop useful for telling
+  people apart" — a crisp background torso scores high, an occluded real guest
+  scores medium. And weddings run mcs=3, so a global conf cut removes exactly the
+  small/distant detections thin identities are made of. conf became a *feature*.
+- **Frozen V18 SSL pretrain backbone, NOT V44/V51 finetune.** SupCon is trained to
+  map a hand crop and a full-body crop of the same person to the same place — it
+  deliberately destroys crop-completeness, the exact signal needed here. The 128-d
+  projection output would be the worst possible feature.
+- **Architecture:** frozen ViT-S/16 -> 384-d CLS + 12 geometry scalars ->
+  StandardScaler -> LogisticRegression. Only 396 weights train. ~545 positives is
+  linear-probe territory; finetuning would overfit.
+- **Transform bug found:** `reid_dataset.get_val_transform` is
+  `Resize(256)->CenterCrop(224)`; Resize with an int scales the SHORT side, so a
+  100x300 full-body crop -> 256x768 -> centre crop keeps roughly the torso. The ViT
+  sees a torso for BOTH "full body" and "torso only". Added `letterbox` (pad to
+  square with ImageNet mean) and `warp` variants; all three ablated.
+- **Two thresholds, opposite objectives.** Labeling (recall >= 0.99) gates what the
+  app displays — a miss there silently becomes a permanent wrong label. Deploy
+  (precision >= 0.95) gates what's dropped before clustering — a miss costs one crop.
+- **Three-run eval:** selection (StratifiedKFold within CV_GALLERY, ranked by
+  PR-AUC since the prior is fixed), LOGO (ROC-AUC, prior-invariant, + Wilson CIs,
+  thin folds flagged never dropped), ship (all data, never evaluated).
+
+### The negative-pool decision (the important one)
+
+`kept_keys | deleted_keys` is exactly what the reviewer was SHOWN. From round 2 on
+the app only displays classifier-flagged crops, so **`baseline - kept` is unsafe** —
+it absorbs the suppressed pool, i.e. the classifier's own predictions, and every
+fragment it misses becomes a hard negative. Blind spots compound each round.
+
+**Decision: negatives = `deleted_keys` only.** Considered and rejected using
+suppressed crops as weak negatives: noise rate would be low but sits precisely on
+the hardest examples, and negatives aren't the bottleneck (~5000 neg vs 537 pos).
+
+Tomer's follow-up: as the model improves, `deleted_keys` degenerates to *boundary*
+negatives only — negative diversity freezes at the first galleries and the training
+prior drifts from deployment (moving the thresholds). Fix: **`RANDOM_QUOTA = 300`**
+(3 UI batches of 100) sampled from the SUPPRESSED pool and displayed alongside.
+Sampling suppressed rather than whole-baseline composes cleanly — above-threshold is
+a census, suppressed is sampled — giving the only direct read on false negatives:
+`missed = (fragments kept in audit) / sampling_fraction`.
+
+`EXCLUDE_REVIEWED`: already-judged crops are subtracted from both display lists, but
+still scored — so per-gallery precision/recall is computable from the scores file alone.
+
+### Cache refactor (Tomer's idea, mid-session)
+
+Nothing upstream of the LR ever changes — the backbone is frozen, geometry comes from
+detections.json. So `embed.py` now caches each gallery's **whole baseline pool** once
+into `<project>/classifier_embeddings_v18_<transform>.npz`, and both `train.py` and
+`predict.py` run off it. **`predict.py` lost its GPU path entirely** — re-scoring the
+dataset after a retrain is now CPU + seconds.
+
+Each cache carries a fingerprint (backbone/ckpt/which, transform, crop_size,
+geometry_names, detections signature) verified on load. The detections signature is a
+**content hash, not size+mtime** — a smoke test caught that mtime changes on
+rsync/restore/machine-move and would needlessly invalidate every cache.
+
+`model_v18.pkl` is one fixed filename overwritten every train run, so predict always
+picks up the newest model with no config change.
+
+### Files
+
+`config.py` (single source of truth) · `dataset.py` (labels, baseline, geometry,
+transforms, fingerprinted cache) · `embed.py` (GPU, only GPU step) · `train.py` (CPU,
+3 runs + thresholds + report) · `predict.py` (CPU, scores -> UI decision file) ·
+`README.md` (full reference: 15 sections, metrics primer, diagnostics)
+
+Also wrote a prompt for the UI-repo Claude: display `show_keys | audit_keys`, add a
+third `suppressed_keys` bucket, and **never** write non-displayed crops to
+`deleted_keys`.
+
+### First real run (3 galleries) — signal is real, threshold is the problem
+
+- **`warp` won, not `letterbox`** (PR-AUC 0.5088 vs 0.4868; letterbox lost even to
+  `reid_val`). Prediction was wrong — likely the padding borders being OOD for the
+  backbone. The ablation existed to settle this and did.
+- PR-AUC 0.509 vs a 0.089 baseline, ROC-AUC 0.90. `C=0.001` wins as expected.
+- **`cls+geom` 0.5088 ~= `cls` 0.5060** — geometry adds almost nothing on top of CLS.
+  `geom` alone 0.273, still 3x baseline.
+- Run 2 cross-gallery ROC-AUC 0.865 / 0.889 -> **generalizes; not venue memorization.**
+- **THE PROBLEM:** labeling threshold at 0.99 recall shows **68% of the pool** —
+  only 1.5x speedup, FPR 0.65-0.82 across galleries. Deploy threshold at 0.95
+  precision catches just **4.7%** of fragments. The PR curve falls off a cliff before
+  0.99 recall.
+- Correction: `21833423` is 8 pos / **65** neg (73 crops) — a *small* gallery, not a
+  low-prior one. All three sit at ~9-11% positive rate; its FPR CI is [0.22, 0.44],
+  as useless as its recall.
+
+### Environment
+
+NVIDIA driver mismatch on `developer-gpu4` blocked the first embed run — kernel module
+580.159.03 vs userspace 580.173.02 (package upgraded, no reboot). Every GPU script on
+the VM was affected. Note `torch.cuda.is_available()` returned **True** despite NVML
+being dead, so the preflight passed and it surfaced as a NCCL trace.
+
+### Open / carried forward
+
+- **Threshold selection is the weak link** — comes from CV_GALLERY's out-of-fold probs
+  alone, so it never improves as galleries are added. Offered: pool LOGO out-of-fold
+  probs instead (more data, cross-gallery, less optimistic). Not done.
+- **Add generated-at timestamp + per-run gallery list to `report.md`** — offered, not
+  done. Would have avoided today's stale-local-copy confusion.
+- 4th gallery labeled; the fresh 4-gallery report on the VM not yet read.
+- **VM cleanup:** delete `features_v18_*.npz` (dead, pre-refactor global cache) and
+  `model_v18_warp_cls_geom.pkl` (old naming).
+- UI-side changes not yet implemented (prompt written, not applied).
+- App should record `suppressed_keys` + a per-crop display reason
+  (`"scored"`/`"random"`) — cheap now, impossible retroactively; enables importance
+  weighting later.
+- Is `21833423`'s tiny size real, or a labeling-standard difference? Affects how its
+  LOGO fold reads.
+- Strengthen the CUDA preflight (exercise `device_count()` + a real allocation) —
+  offered, not decided.
+- Carried (still): `all_approved` full comparison, `1e-12` epsilon parity, Trial 2
+  `experiment.md`, pink V13 ckpts, store pipeline VM end-to-end test.
+- Committed mid-session (`1089514`), clearing the long-standing uncommitted backlog
+  from the 06-23/24/30 sessions along with this package.
+
+## 2026-07-28 (cont.) — Pooled calibration + backbone switched to the deployed ReID model
+
+### The miscalibration that surfaced
+
+The 6-gallery report showed `26648310` at **77%** positive and `31643124` at **69%**,
+versus ~9-15% for the first four. Cause: those two were labeled *through* the classifier
+filter, so the reviewed pool was the classifier's own output, not the gallery.
+
+`CV_GALLERY = None` auto-picks the gallery with the most positives -> it picked the 77%
+one -> **both thresholds were calibrated at a 77% prior while deployment sees ~10%.**
+Run 2 showed the cost: FPR 0.87-0.91 on the real-prior galleries, i.e. ~90% of the pool
+still displayed — worse than the 68% of the 3-gallery run. ROC-AUC also fell from
+0.865/0.889 to 0.79-0.84, because training had become positive-heavy with only boundary
+negatives.
+
+### Pooled cross-gallery calibration (Tomer's proposal, refined)
+
+Tomer's instinct: stop calibrating on one gallery — do leave-one-gallery-out and combine.
+His version averaged the per-gallery thresholds weighted by gallery size.
+
+**Refinement: pool the DATA, not the thresholds.** The threshold->recall map is
+non-linear, so averaging thresholds lands short of the target — and lands short
+specifically on the galleries where the model is weakest, which are the ones most worth
+protecting. The smoke test measures it: a size-weighted average of per-gallery thresholds
+gave **0.9688** recall where pooling gave **0.9908** against a 0.99 target.
+
+Pooling also delivers his size-weighting for free, and by the *right* size per metric —
+positives drive recall, negatives drive FPR — which one per-gallery weight cannot do.
+
+Restructure: `run_logo` split into `logo_out_of_fold` (takes no threshold — it produces
+what the threshold is derived from), `pool_out_of_fold`, and `fold_report`. Run 2 now
+runs *before* the thresholds, breaking the circular dependency that forced
+single-gallery calibration. `CALIBRATION_GALLERIES` is the escape hatch.
+
+### Coverage guard — measured, not a hardcoded list
+
+    coverage = |kept ∪ deleted| / |crops in the embedding cache|
+
+Measurable precisely because the cache holds the whole baseline pool. Warns below
+`MIN_COVERAGE_WARN = 0.95`; the report flags such galleries `← PARTIAL`. It would have
+caught the 77% galleries automatically, and it doubles as a labeling progress meter.
+
+### Backbone switched to the deployed ReID model (`ft_v44`)
+
+Tomer flagged the production cost: body embeddings come from the finetuned model, so a
+classifier on V18 pretrain means **two forward passes per crop** in production.
+
+Now `BACKBONE_SOURCE = "finetune"`, tag `ft_v44`, ckpt =
+`/data/AI/Tomer/person_reid/models/ckpt_iter15000_sil0.4556.pt` (what production loads).
+Takes the **384-d pre-head CLS**; the projection head is never built. Rationale: the head
+is where SupCon's nuisance-invariance is enforced, and mode-C only unfreezes the last N
+blocks, so most of the backbone is still V18 weights. Base arch/weights are read from
+`reid_config.yaml` so they cannot drift from what the finetune actually started from.
+
+Both sources coexist via `BACKBONE_TAG`, so the `v18` vs `ft_v44` comparison stays
+available on identical labels.
+
+### Feature signature — the loud retrain guard
+
+Accepted cost: every finetune release now invalidates the classifier. Tomer asked for it
+to fail loudly. The fingerprint is split:
+
+- `feature_signature(transform)` — gallery-independent (source, ckpt, which, transform,
+  crop_size, geometry_names) — stored **in the model bundle** at train time
+- `cache_fingerprint(gallery, transform)` — that **+** the gallery's `detections.json`
+  content hash — stamped on each cache
+
+`predict.py` compares the bundle's signature against the live config *before scoring
+anything* and refuses with `RETRAIN THE CLASSIFIER`. This catches the dangerous case:
+both backbones emit 384-d vectors, so a stale model would otherwise run happily and
+score everything wrong with no error. Tested four ways (changed ckpt, changed source,
+missing signature, cache fingerprint moving independently).
+
+### Smaller changes
+
+- `SCORES_FILENAME` -> stable untagged **`classifier_scores.json`** so the UI has one
+  fixed path. Deliberate deviation from the `{model_id: filename}` convention —
+  provenance lives inside the file's `model` block instead.
+- `EMBED_CACHE` / `MODEL_FILE` -> templates keyed off `BACKBONE_TAG`; the old tag-keyed
+  dicts would `KeyError` the moment a new tag was set.
+- `report.md` gained a **generated-at timestamp**, after an hour lost to reading a stale
+  local copy that had never been downloaded from the VM.
+- `detections_signature` switched from size+mtime to a **content hash** — a smoke test
+  caught that mtime changes on rsync/restore/machine-move and would needlessly
+  invalidate every cache.
+
+### Corrections logged
+
+- `21833423` is 8 pos / **65** neg (73 crops) — a *small* gallery, not a low-prior one.
+  Earlier claims about thousands of negatives there and a ~40x prior gap were wrong.
+- Claimed the UI wasn't wired to the scores file; the 77% positive rate proved it was.
+  That was an assumption from silence, not evidence.
+- Predicted `letterbox` would win the transform ablation. `warp` won and letterbox lost
+  even to `reid_val` — padding borders are likely OOD for the backbone.
+
+### Status at session end
+
+Tomer manually reviewed every suppressed crop across all 6 galleries, so **all six are
+now 100% covered** — pooling over all of them is valid and the coverage warning should
+stay silent. Nothing has run under `ft_v44` yet. 141 checks across 3 smoke suites, green.
+
+### Open / carried forward
+
+- **Run `embed` -> `train` -> `predict` under `ft_v44`** (embed is a full re-embed: new
+  namespace, ~10K crops x 3 transforms). Watch for: coverage 100% on all six; positive
+  rates for the two filtered galleries dropping from 0.768/0.687 toward ~0.10; **ROC-AUC
+  recovering above 0.86** (the falsifiable check on the skew diagnosis); and the pooled
+  "shows X% of the pool" — the first honestly-calibrated speedup number.
+- **Point the UI at `classifier_scores.json`** and delete the stale
+  `classifier_scores_v18.json` files, or the app silently reads a file nothing updates.
+- **The weak speedup is still unsolved** — ~68-90% of pool at 99% recall. That is model
+  strength, not calibration; levers are more galleries or accepting ~0.95 recall.
+- `v18` vs `ft_v44` comparison available but not run — would quantify what the
+  single-forward-pass win costs in accuracy.
+- Later: V44 -> V52 ckpt swap. Update `FINETUNE_CKPT` -> embed -> train -> predict;
+  `predict` refuses if the retrain is skipped.
+- App should record `suppressed_keys` + a per-crop display reason (`"scored"`/`"random"`)
+  — still not done, still impossible retroactively.
+- Strengthen the CUDA preflight (`torch.cuda.is_available()` returned True with NVML
+  dead) — offered, not decided.
+- Carried (still): `all_approved` full comparison, `1e-12` epsilon parity, Trial 2
+  `experiment.md`, pink V13 ckpts, store pipeline VM end-to-end test.
+- **Uncommitted:** this session's `classifier_body_parts/` edits (config, dataset, embed,
+  train, predict, README) + this entry.
+
+## 2026-08-18 — V52 cluster JSONs for Wedding[1] + the detections.json conf-vintage split
+
+Untracked-on-disk since the 07-28 entry (done outside sessions, Aug 4–9): the `ft_v44` and
+`ft_v52` classifier runs, and `tmp_antonia/` — the production-format body-embed path whose
+Aug 9 zip covers 8 Wedding[1] galleries.
+
+### Thread 1 — cluster JSONs for all of Wedding[1] under V52
+
+`prep_labeling_files.py` is the entry point (not `cluster_test_set.py`, which samples 100
+projects into a separate results tree). Two lines in `realworld_eval/config.py`:
+`FINETUNE_VERSION_DIR` → V52 (it drives the output tag) and `FINETUNE_CKPT_PATH` → the exact
+ckpt. Everything else was already right: `DATASET_ROOT` = Wedding[1], and HDBSCAN already on
+the wedding-tuned `mcs=3` / `allow_single_cluster=False`.
+
+`reid_config.yaml` needed no edit — verified by loading the ckpt directly rather than assuming:
+ViT-S/16, 12 blocks, `storage_tokens (1,4,384)`, layerscale present, head 384→384→128, so it
+strict-loads against the existing arch + `proj_hidden_dim`/`proj_output_dim`.
+
+Flagged: `load_backbone` still reads the V18 pretrain DCP purely as an arch template before the
+V52 weights overwrite it, so deleting old pretrain ckpts breaks this path.
+
+### Thread 2 — 23-gallery V52 body-embed batch, and the conf bug
+
+All 23 requested ids are in Wedding[1] with no overlap with the Aug 9 eight. All 23 failed
+with `KeyError('conf')`.
+
+**Root cause: `detections.json` has two vintages inside the same dataset.** Old galleries
+carry `det keys=['bbox']`; newer ones carry `['bbox','conf']` (e.g. 0.918). person-reID's
+`utils/request_processing.py:61` does a bare `float(bbox['conf'])`, and it **persists** conf
+rather than only filtering on it. `process_galleries.py`'s handler printed `{e!r}` with no
+traceback, which cost a diagnostic round-trip — now fixed.
+
+**Decision: `MISSING_CONF = 1.0`, fabricated and counted.** Rejected re-detecting: it would
+renumber bbox indices and invalidate every `"<filename>_<bbox_index>"` key already written
+against these galleries — the fragment classifier's labels, `clusters_*.json`,
+`crop_distances_*.json` — including the run being generated right now in thread 1. Rejected
+patching `request_processing.py`: in production a detection with no conf IS a bug and should
+crash; normalize at the offline-replay boundary instead and leave prod strict.
+
+`counts["synthetic_conf"]` is filled from the **post-`current_revisions`** mapping so it stays
+comparable with `counts["crops"]`; filling raw detections would have counted superseded
+revisions that are never embedded. Reported per gallery as a fraction and flagged
+`MIXED VINTAGE` when `0 < synthetic < crops` — a part-old gallery would otherwise be
+indistinguishable from a wholly-old one while sitting real scores beside fabricated ones.
+
+**Caveat on the justification:** `classifier_body_parts/dataset.py:209` already does
+`det.get("conf", 1.0)`, but that precedent does not transfer cleanly — there conf is a feature
+column fed to a scaler (a benign constant), here it becomes a persisted score in a handoff
+artifact. The value is a deliberate fabrication, not an inherited convention.
+
+**Correction to a logged result:** because `dataset.py` defaults conf to 1.0, the classifier's
+`geom`-only ablation (PR-AUC 0.273) mixed real conf on some galleries with a constant on
+others — `21833423` is bbox-only *and* is one of the 7 training galleries. The shipped model is
+`feature_set=cls`, so nothing deployed is affected, but that number is weaker evidence than it
+looked.
+
+### Thread 2 result — 23/23 written, and gate 1 validated for free
+
+23 galleries, 0 failed, **every one uniformly 100% synthetic conf** — no `MIXED VINTAGE`, so
+the vintage split is per-gallery, not per-image inside a gallery. 12083 crops: 9309 face-exempt
+(77%), 2774 scored, 171 dropped (6.2% of scored). Zip packaged.
+
+**Gate 1 validated independently and unplanned:** `21833423` reports 86 crops with 13
+face-exempt → 73 no-face crops, which is exactly the classifier's labeled pool for it
+(8 pos + 65 neg). The face gate in `process_galleries.py` reproduces the same pool definition
+the classifier was trained against.
+
+**And the same gallery puts a number on the weak-recall problem: it dropped 0 of its 8 known
+fragments** at the deploy threshold. Consistent with the logged ~4.7%-of-fragments figure
+(8 × 0.047 ≈ 0.4, so zero is expected), but note the direction — `21833423` is one of the 7
+*training* galleries, so this is **in-sample** recall, and out-of-sample is no better than 0/8.
+Read `classifier_kept.json` as a high-precision, very-low-recall filter, not a cleanup. The
+classifier also only scored 23% of crops; the other 77% were face-exempt and kept unscored.
+
+### Thread 3 — V52-optimized HDBSCAN params + a recluster-only path
+
+New params arrived as the production spec (`body_distance_function` cosine,
+`body_clustering_distance` 0.08, `body_clustering_size` 3, `body_clustering_min_samples` 2,
+`body_clustering_method` hdbscan4_1). Translation vocabulary is documented at
+`model_comparison/config.py:43-45`, and 0.08 is literally one of `optimize_hdbscan.py`'s
+`cluster_selection_epsilon` sweep values, so four of the five map unambiguously.
+
+**`cosine 0.08` is encoded as `euclidean 0.40`, and that is not a deviation.** `embed_project`
+L2-normalizes, and on unit vectors `d_euclid = sqrt(2 * d_cos)` — strictly monotone, so core
+distances, mutual reachability and the MST keep their ordering and the hierarchy is identical;
+every other knob is scale-invariant. Only epsilon is absolute: `sqrt(2 * 0.08) = 0.40`. Reason
+to prefer it: `cosine` is in neither `BallTree.valid_metrics` nor `KDTree.valid_metrics`
+(checked), so asking hdbscan for it either errors or forces a dense O(n²) matrix per project.
+
+**Scale note:** the previous `0.1` euclidean was `cosine 0.005`, so this is **16x looser**.
+Expect markedly fewer, larger clusters — intended if the target was fracturing, but not a nudge.
+
+**`recluster_labeling_files.py` (NEW).** The caches make re-clustering free: nothing upstream of
+HDBSCAN changed, so it loads `embeddings_<tag>.npz`, re-clusters, and rewrites only
+`clusters_<tag>.json` + `crop_distances_<tag>.json` — no GPU, no model, no image decode. Same
+pattern as the classifier cache refactor that cost `predict.py` its GPU path. Params and
+distance math are imported from the siblings, never restated, so they cannot drift.
+
+Two design points worth keeping: a **unit-norm guard** (`max |‖v‖-1| < 1e-4`, else refuse) turns
+the epsilon conversion from an assumption into a checked precondition — an unnormalized cache
+would otherwise cluster at a silently wrong threshold with no error. And it reads the existing
+clusters file **before** overwriting to report a per-project before/after delta, which recovers
+the comparison otherwise lost to both param sets sharing the `v52` tag.
+
+Consequence: `prep_labeling_files.FORCE` stays `False`, so the expensive embed path stays
+guarded and the silent-no-op footgun is gone. 17 smoke checks green, including
+`clusters_dict_from_arrays` being JSON-identical to `build_clusters_dict`.
+
+### Open / carried forward
+
+- **Which space were the V52 clustering params tuned in?** `prep_labeling_files` clusters the
+  **128-d post-projection-head** output; production serves the **384-d pre-head CLS**. The
+  `body_*` naming is prod vocabulary, which suggests 384-d — and a cosine threshold does not
+  transfer between differently-shaped spaces. Raised, unresolved; if they were tuned on prod
+  embeddings the values may not mean what they should here.
+- **`hdbscan4_1` is unmapped** — reads as a prod method-version id, not an HDBSCAN arg. Left
+  `cluster_selection_method="eom"` and `allow_single_cluster=False` (the 06-24 wedding fix).
+- **`embeddings_<tag>.npz` carries no fingerprint** — reclustering trusts that the cache came
+  from the V52 ckpt, with the tag as the only link. Offered to stamp one; not built.
+- **Downstream conf semantics never verified** — the grep over person-reID for `conf` consumers
+  was requested twice and not run. 1.0 keeps everything if downstream filters, but reads as
+  "certain" if it ranks. The one unresolved assumption behind the chosen value.
+- **`DETECTION_VERSION = 1` is stamped for both vintages**, so the proto claims one detector
+  for two. Same class of provenance gap as the conf value. Undecided.
+- **`detection_conf: "synthetic"` marker in the `classifier_kept.json` `model` block** —
+  offered, not added; the count is currently the only record.
+- Cross-batch conf is meaningless: the Aug 9 zip has real scores, this batch will be all 1.0.
+- `21833423` is in the classifier's training galleries, so its keep-list is in-sample and its
+  drop-rate is optimistic — 1 of 23, but the manifest reports it per gallery.
+- Thread 1 decisions still open: whether to filter fragment crops (via `classifier_kept.json`)
+  before clustering, whether to relax the `clusters_fixed.json` skip, and pointing the labeling
+  UI at the `_v52` tag.
+- Carried (still): `all_approved` full comparison, `1e-12` epsilon parity, Trial 2
+  `experiment.md`, pink V13 ckpts, store pipeline VM end-to-end test.
+- **Uncommitted:** `tmp_antonia/` + `classifier_body_parts/` edits + `realworld_eval/config.py`
+  + `realworld_eval/recluster_labeling_files.py` + this entry.

@@ -25,3 +25,5 @@ train_pictime/my_prompt
 
 train_pictime/model_comparison/results
 train_pictime/finetune/fracturing_eval/results
+train_pictime/tmp_antonia
+train_pictime/classifier_body_parts/results

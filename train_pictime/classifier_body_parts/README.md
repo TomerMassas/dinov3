@@ -13,12 +13,12 @@ identity information.
 1. [Status](#status)
 2. [The problem, and why not just raise the detector threshold](#1-the-problem)
 3. [Architecture](#2-architecture)
-4. [Why the *pretrain* backbone and not the finetune](#3-why-the-pretrain-backbone)
+4. [Which backbone — `BACKBONE_SOURCE`](#3-which-backbone--backbone_source)
 5. [The transform problem](#4-the-transform-problem)
 6. [Geometry features](#5-geometry-features)
 7. [Labels and the round-2 trap](#6-labels-and-the-round-2-trap)
 8. [Two thresholds](#7-two-thresholds)
-9. [The three-run evaluation](#8-the-three-run-evaluation)
+9. [Evaluation and calibration](#8-evaluation-and-calibration)
 10. [Metrics reference](#9-metrics-reference)
 11. [Reading the coefficients](#10-reading-the-coefficients)
 12. [How to run](#11-how-to-run)
@@ -31,24 +31,46 @@ identity information.
 
 ## Status
 
-**Code written and smoke-tested on synthetic data. Never yet run on real crops** —
-blocked on 2026-07-27 by an NVIDIA driver mismatch on `developer-gpu4` (see
-[Gotchas](#15-gotchas)).
+Ran end to end on real data 2026-07-28 (after fixing an NVIDIA driver mismatch on
+`developer-gpu4` — see [Gotchas](#15-gotchas)). Six labeled galleries at that point:
 
-Labeled galleries under `Wedding[1]`:
+| gallery | pos | neg | positive rate | note |
+|---|---|---|---|---|
+| `17601187` | 365 | 3717 | 0.089 | pre-filter era |
+| `18226778` | 164 | 1295 | 0.112 | pre-filter era |
+| `21833423` | 8 | 65 | 0.110 | tiny — 73 crops, thin on **both** axes |
+| `24719889` | 209 | 1142 | 0.155 | pre-filter era |
+| `26648310` | 1131 | 341 | **0.768** | labeled through the classifier filter |
+| `31643124` | 933 | 425 | **0.687** | labeled through the classifier filter |
 
-| gallery | positives | negatives | positive rate |
-|---|---|---|---|
-| `17601187` | 367 | ~3500 | ~9.5% |
-| `18226778` | 170 | — | — |
-| `21833423` | 8 | — | well under 1% |
+### What the 3-gallery run found
 
-`21833423` is far too thin to measure recall on (8 positives → 95% CI roughly
-±35pp). It is kept as a leave-one-gallery-out fold but flagged `THIN` in the report.
+`warp` beat `letterbox` (PR-AUC 0.509 vs 0.487; letterbox lost even to `reid_val` —
+padding borders are likely out of distribution for the backbone). PR-AUC 0.509 against a
+0.089 baseline, ROC-AUC 0.90, `C=0.001`. `cls+geom` ≈ `cls` (geometry adds little on top
+of CLS); `geom` alone 0.273, still 3× baseline. Cross-gallery ROC-AUC 0.865/0.889 —
+**it generalizes; not venue memorization.**
 
-All four scripts plus `predict.py` are written. `predict.py`'s baseline loader is
-tolerant of several JSON shapes and reports which one it matched — confirm on the
-first real run that it prints the expected shape.
+> Historical (V18 backbone). The transform ablation it ran no longer runs: the transform
+> is pinned to `reid_val` so production shares one forward pass — see §4. The winner
+> also flipped under `ft_v52` (letterbox, then retired), which is its own reason not to
+> read a transform ranking off one backbone.
+
+### The open problem
+
+**The labeling speedup is weak.** At 99% recall the filter still showed 68% of the pool
+(3-gallery run), with FPR 0.87–0.91 on real-prior galleries. The deploy gate at 95%
+precision caught only 4.7% of fragments. The PR curve falls off a cliff before 0.99
+recall. That's model strength, not calibration — the levers are more galleries, or
+accepting ~0.95 recall.
+
+### The trap that bit, and the fix
+
+Galleries labeled *through* the filter come back positive-heavy by construction (77%,
+69% above). The old `CV_GALLERY = None` then auto-picked the 77% gallery, so both
+thresholds were calibrated at a 77% prior while deployment sees ~10%. Both halves of
+that are now gone: there is no within-gallery selection step and no `CV_GALLERY` at
+all, so every number and both thresholds come from leave-one-gallery-out (§8).
 
 ---
 
@@ -78,10 +100,13 @@ among twelve.
 ## 2. Architecture
 
 ```
-crop ──► [FROZEN V18 ViT-S/16] ──► 384-d CLS ──┐
-                                                ├─► StandardScaler ─► LogisticRegression ─► p_fragment
-detections.json ──► 12 geometry scalars ───────┘
+crop ──► [FROZEN ViT-S/16, pre-projection-head] ──► 384-d CLS ──┐
+                                                                 ├─► StandardScaler ─► LR ─► p_fragment
+detections.json ──► 12 geometry scalars ────────────────────────┘
 ```
+
+The backbone is the **deployed finetuned** one by default, so production serves the body
+embedding and this classifier from one forward pass — see §3.
 
 **Trained:** only the logistic regression — 396 weights + a bias.
 **Frozen:** everything else. The ViT is a fixed feature extractor.
@@ -117,43 +142,128 @@ this `n` more capacity overfits.
 
 ---
 
-## 3. Why the pretrain backbone
+## 3. Which backbone — `BACKBONE_SOURCE`
+
+Two sources, both emitting the **384-d CLS** (never the 128-d projection output).
+`BACKBONE_TAG` namespaces caches and the model, so both can coexist and be compared.
+
+### `"finetune"` — the default, `ft_v44`
+
+`/data/AI/Tomer/person_reid/models/ckpt_iter15000_sil0.4556.pt` — **the ckpt production
+actually loads** (mirrors `model_comparison/config.py:50`).
+
+**Why: production runs ONE forward pass.** Body embeddings come from the finetuned
+model; if the classifier needed different features, every crop would go through two
+backbones — one for ReID, one just for the filter. Taking the pre-head CLS of the same
+backbone makes the filter free at inference.
+
+The original objection applies to the **projection head**, not the backbone:
+- The head is where SupCon's nuisance-invariance is enforced (standard SimCLR/SupCon
+  finding); the backbone retains more general information. We never build the head.
+- Mode-C only unfreezes the **last N blocks** (4 in Trial 2, 6 in Trial 3), so most of
+  the backbone is still literally V18 weights.
+
+Loading (`embed.py::load_classifier_backbone`) takes the base arch/weights from
+`reid_config.yaml` rather than hardcoding them, so they cannot drift from whatever the
+finetune run actually started from; the ckpt's `backbone_state_dict` then overwrites it.
+
+### `"pretrain"` — `v18`
 
 `/data/AI/Tomer/dinov3/train_pictime/experiments_V2/V18/ckpt/19750`, `which=teacher`.
-The **SSL pretrain** backbone, deliberately **not** V44/V51 finetune.
+Untouched by SupCon, so cleanest in principle — but costs production a second forward
+pass per crop. Keep it as the comparison arm: embed under tag `v18`, train, and compare
+pooled PR-AUC against `ft_v44` on identical labels.
 
-SupCon is trained to map a hand crop and a full-body crop *of the same person* to
-the same place. It is explicitly optimized to **destroy crop-completeness** — the
-exact signal this classifier needs. The 128-d projection output would be the worst
-possible feature choice here.
+Note `load_backbone` is **DCP-only**. The raw LVD-142M `.pth` foundation would need
+`foundation_loader.py::load_foundation_into_backbone()` instead.
 
-`finetune_reid.load_backbone()` gives the pretrain backbone directly:
-`prep_labeling_files.py:71` calls it and only *then* overwrites the state dict with
-the finetune ckpt. We skip that second step.
+### The cost you took on, and the guard for it
 
-Note: `load_backbone` is **DCP-only**. The raw LVD-142M `.pth` foundation would need
-`foundation_loader.py::load_foundation_into_backbone()` instead — a small extra
-branch if that ablation is ever wanted.
+Tying the classifier to the deployed backbone means **every new finetune release
+invalidates the caches and requires retraining the classifier.** That's deliberate, and
+it fails loudly rather than silently — see §3a.
+
+## 3a. The feature signature — why a backbone swap can't slip through
+
+Both backbones emit 384-d vectors, so a model fitted on one applied to the other's
+cache would run happily and score **everything** wrong. Nothing would error.
+
+So the fingerprint is split in two:
+
+| | contents | stamped on |
+|---|---|---|
+| `feature_signature(transform)` | `backbone_source`, `backbone_ckpt`, `backbone_which`, `transform`, `crop_size`, `geometry_names` — gallery-independent | the **model bundle**, at train time |
+| `cache_fingerprint(gallery, transform)` | the above **+** that gallery's `detections.json` content hash | each **cache** |
+
+`predict.py` compares the bundle's signature against the live config *before scoring
+anything* and refuses on mismatch:
+
+```
+Model and config disagree about the features — RETRAIN THE CLASSIFIER (train.py)
+before scoring.
+  model was fitted on: {... "backbone_ckpt": ".../V44/ckpt_iter15000..." ...}
+  config now says:     {... "backbone_ckpt": ".../V52/ckpt_iter31000..." ...}
+```
+
+One comparison catches a changed ckpt, a changed source, a changed transform, a changed
+crop size, and an added geometry feature. A model predating signature stamping is also
+rejected rather than trusted.
+
+**So the V44 → V52 upgrade is: update `FINETUNE_CKPT` → `embed` → `train` → `predict`.**
+Skip the retrain and `predict` stops you.
 
 ---
 
-## 4. The transform problem
+## 4. The transform problem — and why it is now settled on `reid_val`
 
 `reid_dataset.get_val_transform()` is `Resize(256) → CenterCrop(224)`. `Resize` with
 an **int** scales the **short side**.
 
 A 100×300 full-body crop → 256×768 → the center crop keeps roughly **the torso only**.
 So the ViT sees a torso for *both* "full body" and "torso only" inputs, and the
-aspect ratio is gone. **The standard transform destroys the exact distinction this
+aspect ratio is gone. **The standard transform damages the exact distinction this
 classifier exists to make.**
 
-Three variants, all output 224×224, all cached in one image-decode pass:
+That is why three variants were built and ablated, all outputting 224×224 and all
+cached in one image-decode pass:
 
-| name | what it does | why |
+| name | what it does | status |
 |---|---|---|
-| `letterbox` | pad to square with ImageNet mean, then resize | Keeps all content **and** keeps shape visible — a leg stays a thin sliver inside a padded square. Mean-coloured padding is ~zero after `Normalize`. **Expected winner.** |
-| `warp` | `Resize((224,224))` straight to square | Keeps all content, loses shape visually; geometry features restore it numerically |
-| `reid_val` | the existing finetune transform | Negative control. If it wins, the reasoning above is wrong and that's worth knowing |
+| `reid_val` | the finetune val transform — `Resize(256) → CenterCrop(224)` | **PINNED.** The one transform that is embedded, trained and shipped |
+| `letterbox` | pad to square with ImageNet mean, then resize | Retired. Kept in `dataset.get_transform` so the ablation stays reproducible |
+| `warp` | `Resize((224,224))` straight to square | Retired. Same |
+
+### Why the damaged transform is the right choice anyway
+
+The whole reason this classifier runs on the **deployed ReID backbone** (§3) is that
+production then serves the body embedding and the fragment score from **one forward
+pass**. That saving only exists if both consumers see the **same pixels**. The body
+embedding uses `get_val_transform`, so any other transform here silently reintroduces
+the second forward pass that switching backbones was meant to remove — the transform
+ablation was quietly cancelling the backbone decision.
+
+The cost of pinning is small, and it is measured rather than assumed. From the `ft_v52`
+run-1 selection (`cls+geom`, best `C` per row):
+
+| transform | PR-AUC | |
+|---|---|---|
+| `letterbox` | 0.9738 | retired |
+| `reid_val` | 0.9719 | **pinned** |
+| `warp` | 0.9718 | retired |
+
+**~0.2% relative PR-AUC to halve production forward passes.** The reason the gap is
+that small is §5(b): the geometry features hand the model the aspect ratio and absolute
+size numerically, which is most of what the center crop threw away. Letterbox restores
+the same information visually; it turns out to be worth ~0.002 PR-AUC on top of having
+it as numbers.
+
+Practical note: `CROP_SIZE` is now decorative. `get_val_transform` hardcodes
+`Resize(256) → CenterCrop(224)` and ignores it — but it still sits in the feature
+signature, so changing it invalidates every cache while altering no pixels.
+
+Do not put `letterbox` or `warp` back into `config.TRANSFORMS` without re-deciding the
+two-forward-pass question. And note the trailing comma: `("reid_val")` is a *string*,
+which iterates as `'r','e','i','d',…` into `get_transform`.
 
 ---
 
@@ -184,8 +294,9 @@ a perfectly square 200×200 px bbox:
 **(b) Geometry is not redundant with the CLS vector.** Every transform outputs
 224×224, so a 60×300 leg and a 300×300 torso both reach the ViT as identical-shaped
 tensors. The backbone **cannot** recover "this was 5× taller than wide" from pixels.
-Geometry hands it over exactly. (Letterbox partly restores it visually — which is
-why it should beat warp — but the numeric feature is cleaner.)
+Geometry hands it over exactly. This is what makes the pinned `reid_val` transform
+affordable (§4): letterbox restores the same information *visually*, and measured
+against having it as numbers that is worth only ~0.002 PR-AUC.
 
 ---
 
@@ -333,26 +444,67 @@ maximize speedup.** The speedup compounds once the estimate firms up.
 
 ---
 
-## 8. The three-run evaluation
+## 8. Evaluation and calibration
 
-**Run 1 — SELECTION.** `StratifiedKFold` *within* one gallery (`CV_GALLERY`, auto =
-most positives = `17601187`). Optimistic in absolute terms — one venue, one set of
-people, one lighting setup — but **every variant shares that optimism**, so it
-validly *ranks* transform × feature-set × `C`. Ranked by **PR-AUC**.
+Leave-one-gallery-out does all of it, in one loop:
 
-**Run 2 — GENERALIZATION.** Leave-one-gallery-out across all labeled galleries with
-the selected config. Reported per gallery with **ROC-AUC** (prior-invariant, so
-comparable across galleries whose positive rates differ by 10×+). Recall carries a
-**Wilson CI**. Thin folds are **flagged, never dropped**.
+```
+for each C in C_GRID:
+    for each gallery:  train on the others, predict this one
+    -> out-of-fold P(fragment) for every crop, cross-gallery by construction
+pick C by PR-AUC on those predictions
+pick both thresholds by walking that same pooled set once
+refit on everything -> ship
+```
 
-**Run 3 — SHIP.** Refit on every labeled gallery. Never evaluated — its only job is
-maximum data. This is the `.pkl` that `predict.py` loads.
+Every number in `report.md` is therefore a held-out, cross-gallery number. There is
+**no within-gallery cross-validation and no single-gallery calibration anywhere** —
+which is what used to let one positive-heavy gallery set the thresholds for the whole
+dataset (see *The trap that bit* in Status).
 
-Thresholds come from **run 1's** out-of-fold probabilities (the statistically solid
-estimate) and are then *reported* on each run-2 fold.
+The final `.pkl` is refit on all the data and is deliberately not evaluated again: the
+sweep and the thresholds above are the honest estimates, and the refit exists only to
+give the shipped model maximum data.
 
-If kNN wins run 1, the shipped model is still the **best LR** — kNN has no calibrated
-probability to threshold and no coefficients to inspect. The script says so explicitly.
+### What decides which galleries train
+
+One thing: **`approved: true`** in `bodyfilter_completion_log.json`, the labeling
+app's completion registry. Approving a gallery in the app is the whole mechanism —
+there is no gallery list in `config.py` and no other condition. Entries without it are
+listed in the report as skipped.
+
+`approved is True` is an identity check, not a truthy one, so the string `"true"`
+does not pass.
+
+Everything else in a log entry (`num_kept`, `num_suppressed`, `num_backfilled`,
+`labels_used`) is informational and is **not** gated on. An earlier version rejected
+galleries on `num_backfilled != 0`, having guessed the field meant "labels not made by
+the reviewer"; it actually counts labels carried over from the previous review round,
+so every relabeled gallery was silently dropped from training. Labels come from each
+gallery's `bodyfilter_result.json`, which is the live file; the log's counts are a
+snapshot and are never compared against it.
+
+**Why pool the data instead of averaging per-gallery thresholds** (2026-07-28): the
+threshold→recall map is non-linear, so averaging per-gallery thresholds lands *short*
+of the target — and lands short specifically on the galleries where the model is
+weakest, which are the ones you most need to protect. The smoke test measures it:
+a size-weighted average of per-gallery thresholds gave **0.9688** recall where pooling
+gave **0.9908** against a 0.99 target — ~3× the intended misses.
+
+Pooling also weights each gallery by its size automatically, **and by the right size
+per metric** — positives drive recall, negatives drive FPR — which a single per-gallery
+weight cannot do.
+
+### The 2026-07-28 miscalibration, for the record
+
+Galleries `26648310` and `31643124` came back at 77% and 69% positive (vs ~10% for the
+pre-filter galleries) because only classifier-flagged crops were ever displayed to the
+reviewer. The old `CV_GALLERY = None` then auto-picked `26648310` (most positives), so
+both thresholds were calibrated at a 77% prior while deployment sees ~10% — FPR on the
+real-prior galleries was 0.87–0.91, i.e. the filter had stopped filtering.
+
+Pooled leave-one-gallery-out calibration is the fix, and it is now the only path:
+there is no single-gallery calibration left to fall into.
 
 ---
 
@@ -392,7 +544,6 @@ ROC  =  plot (FPR, Recall)          PR  =  plot (Recall, Precision)
 | **FPR** | FP / all real people | denominator = *the truth*. This is the confusion point |
 | **ROC-AUC** | area under (FPR, Recall) | P(random fragment scores above random real person). **Prior-invariant** |
 | **PR-AUC** | area under (Recall, Precision) | **Prior-dependent** — floor equals the positive rate |
-| **Wilson CI** | CI for a proportion | 7/8 recall has a 95% interval of ~[0.53, 0.98] |
 
 Deliberately absent: **accuracy**. At an 8% positive rate, "never a fragment" scores
 92% and is worthless.
@@ -419,7 +570,7 @@ mixes classes in its denominator, so it tracks the prior.
 **Hence:** run 1 (one gallery, fixed prior) → **PR-AUC**, which is also far more
 sensitive to the minority class. ROC-AUC can read 0.95+ while precision is dreadful:
 with 3500 negatives a mere 5% FPR is 175 false positives drowning 367 true ones.
-Run 2 (across galleries) → **ROC-AUC**, the only comparable one.
+Across galleries → **ROC-AUC**, the only comparable one.
 
 ### What good looks like
 
@@ -452,7 +603,7 @@ destroying almost no good crops.
 | symptom | meaning |
 |---|---|
 | ROC great, PR poor | Expected — imbalance punishing precision. Not a bug |
-| Run 1 ≈ 0.95, Run 2 ≈ 0.70 | **Learned the venue, not body parts.** The key check |
+| One gallery's held-out ROC-AUC far below the rest | **Learned the other venues, not body parts** — that gallery is the odd one out |
 | PR falls immediately from the left | Top-scored crops aren't fragments → suspect labels or features |
 | `geom` alone ≈ `cls+geom` | Backbone contributes nothing; bbox shape does all the work. Would simplify deployment enormously |
 | Everything near baseline | No signal — check the ablation before adding data |
@@ -484,11 +635,11 @@ the needle far more near p=0.5 than near p=0.99.
 ```bash
 cd /data/AI/Tomer/dinov3
 
-# 1. GPU (VM only) — embed each gallery's baseline pool, all 3 transforms, ONE decode pass.
+# 1. GPU (VM only) — embed each gallery's baseline pool (one transform, pinned).
 #    Skip-if-cached: a gallery is embedded once, ever.
 python3 -m train_pictime.classifier_body_parts.embed
 
-# 2. CPU (seconds) — join caches with labels, sweep, pick thresholds, ship the model
+# 2. CPU (seconds) — approved galleries -> sweep C, pick both thresholds, ship the model
 python3 -m train_pictime.classifier_body_parts.train
 
 # 3. CPU (seconds) — score every project, write the UI's decision file
@@ -504,10 +655,12 @@ for a fixed (crop, transform) the 384-d CLS is deterministic; geometry comes fro
 So `embed.py` writes, once per gallery, into the project dir:
 
 ```
-<project>/classifier_embeddings_v18_letterbox.npz     key[], cls[N,384], geom[N,G] + fingerprint
-<project>/classifier_embeddings_v18_warp.npz
-<project>/classifier_embeddings_v18_reid_val.npz
+<project>/classifier_embeddings_ft_v52_reid_val.npz     key[], cls[N,384], geom[N,G] + fingerprint
 ```
+
+One file per gallery now that the transform is pinned (§4). The `ft_v44` era wrote three
+per gallery — `_letterbox`, `_warp`, `_reid_val` — which are dead once the tag or the
+transform moves on and can be deleted.
 
 covering that gallery's **whole baseline pool** — not just labeled crops. Then:
 
@@ -532,9 +685,13 @@ needlessly invalidate every cache in the dataset.
 `EMBED_FORCE = True` rebuilds caches by hand; normally unnecessary since staleness is
 detected automatically.
 
-No config edits needed — galleries auto-discover from `bodyfilter_result.json`.
+No config edits needed. `embed.py` embeds every project that has a
+`bodyfilter_baseline.json`; `train.py` trains on every gallery marked
+`approved: true` in `bodyfilter_completion_log.json` and nothing else (§8). A newly
+labeled gallery is therefore picked up the moment it is approved, and unapproved ones
+are listed in the report as skipped.
 
-**One model file, always the same path.** `train.py` writes `model_v18.pkl` and
+**One model file, always the same path.** `train.py` writes `model_ft_v44.pkl` and
 overwrites it every run, so `predict.py` always picks up the newest model with no
 config change. The winning transform and feature set aren't in the filename — they're
 inside the bundle, printed by `predict.py` at startup, and recorded in `report.md` and
@@ -545,7 +702,7 @@ scores only projects never scored before.
 
 ### What `predict.py` writes, per project
 
-`<project>/classifier_scores_v18.json`:
+`<project>/classifier_scores.json`:
 
 | field | meaning |
 |---|---|
@@ -592,14 +749,14 @@ itself changed — which is correct: a new model has new blind spots to audit.
 ### Outputs
 
 ```
-train_pictime/classifier_body_parts/results/v18/
-├── features_v18_letterbox.npz              # caches (embed.py)
-├── features_v18_warp.npz
-├── features_v18_reid_val.npz
-├── model_v18.pkl                   # model + both thresholds; OVERWRITTEN every train run
-├── report.md                               # read this
-└── curves.png
+train_pictime/classifier_body_parts/results/ft_v44/
+├── model_ft_v44.pkl    # model + both thresholds; OVERWRITTEN every train run
+├── report.md           # read this
+└── curves.png          # pooled cross-gallery PR + ROC, both thresholds marked
 ```
+
+The embedding caches do **not** live here — they are per-project, inside each gallery
+dir (`<project>/classifier_embeddings_ft_v44_<transform>.npz`).
 
 Nothing is written into gallery dirs — only `predict.py` will do that.
 
@@ -683,10 +840,10 @@ boundary move later without relabeling, and tells you *which* junk type you miss
 | file | role |
 |---|---|
 | `config.py` | Single source of truth. Paths, backbone, transforms, feature sets, `C_GRID`, both threshold targets, output naming |
-| `dataset.py` | Label + baseline loading with integrity checks, geometry features, the three transforms, `GalleryImageDataset`, and the fingerprinted per-gallery embedding cache (read + write) |
+| `dataset.py` | Label + baseline loading with integrity checks, `build_X` (shared with `predict.py` so the column order cannot diverge), geometry features, the transforms, `GalleryImageDataset`, and the fingerprinted per-gallery embedding cache (read + write) |
 | `embed.py` | **GPU — the only GPU step.** Embeds each gallery's baseline pool once → per-project caches. Skip-if-cached |
-| `train.py` | **CPU.** Joins caches with labels, three runs, threshold picking, model pickle, `report.md` + `curves.png` |
-| `predict.py` | **CPU, seconds.** Reads caches → `classifier_scores_v18.json` with `show_keys` + `audit_keys` + provenance. Run after each train phase |
+| `train.py` | **CPU, seconds.** Reads the approved galleries from the completion log, joins caches with labels, one leave-one-gallery-out loop (picks `C`, calibrates both thresholds), refit, model pickle, `report.md` + `curves.png` |
+| `predict.py` | **CPU, seconds.** Reads caches → `classifier_scores.json` with `show_keys` + `audit_keys` + provenance. Run after each train phase |
 
 Conventions followed from `model_comparison/` and `realworld_eval/`: hardcoded VM
 paths, no argparse, `python3 -m ...` invocation, atomic writes (`.tmp` + `os.replace`),

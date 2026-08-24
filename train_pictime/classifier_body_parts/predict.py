@@ -52,12 +52,12 @@ import numpy as np
 from tqdm import tqdm
 
 from train_pictime.classifier_body_parts import config as C
+from train_pictime.classifier_body_parts import dataset
+# build_X comes from dataset, not train: the feature column order MUST match training
+# exactly, and a silent divergence here would be invisible at runtime.
 from train_pictime.classifier_body_parts.dataset import (
-    cache_is_valid, discover_all_projects, load_gallery_cache,
+    build_X, cache_is_valid, discover_all_projects, load_gallery_cache,
 )
-# build_X is imported rather than reimplemented: the feature column order MUST match
-# training exactly, and a silent divergence here would be invisible at runtime.
-from train_pictime.classifier_body_parts.train import build_X
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +146,8 @@ def build_output(bundle: dict,
 
     return {"model": {"file": str(model_path),
                       "backbone_tag": bundle["backbone_tag"],
-                      "pretrain_ckpt": bundle["pretrain_ckpt"],
+                      "backbone_source": bundle["backbone_source"],
+                      "backbone_ckpt": bundle["backbone_ckpt"],
                       "backbone_which": bundle["backbone_which"],
                       "transform": bundle["transform"],
                       "feature_set": bundle["feature_set"],
@@ -199,7 +200,7 @@ def save_json(path: Path, obj: dict) -> None:
 
 def main():
     bundle, model_path = load_bundle()
-    out_name = C.SCORES_FILENAME[C.BACKBONE_TAG]
+    out_name = C.SCORES_FILENAME
     print(f"Model:      {model_path}")
     print(f"            {bundle['transform']} / {bundle['feature_set']} / C={bundle['C']:g}, "
           f"trained on {bundle['n_train']} crops from {len(bundle['trained_on_galleries'])} galleries")
@@ -212,9 +213,20 @@ def main():
           f"{C.UI_BATCH_SIZE} from the suppressed pool")
     print(f"Excluding already-reviewed crops: {C.EXCLUDE_REVIEWED}\n")
 
-    if bundle["backbone_tag"] != C.BACKBONE_TAG:
-        raise RuntimeError(f"Model was trained on backbone '{bundle['backbone_tag']}' but config "
-                           f"says '{C.BACKBONE_TAG}' — the output filename would misattribute it")
+    # The load-bearing guard. Both backbones emit 384-d vectors, so a model fitted on
+    # one applied to the other's cache would run happily and score everything wrong.
+    # Comparing the feature signature catches a changed backbone ckpt or source, a
+    # changed transform, a changed crop size, and an added geometry feature.
+    expected = dataset.feature_signature(bundle["transform"])
+    found = bundle.get("feature_signature")
+    if found is None:
+        raise RuntimeError(f"{model_path} predates feature-signature stamping. Re-run train.py "
+                           f"so the model records which backbone it was fitted on.")
+    if found != expected:
+        raise RuntimeError(f"Model and config disagree about the features — RETRAIN THE "
+                           f"CLASSIFIER (train.py) before scoring.\n"
+                           f"  model was fitted on: {found}\n"
+                           f"  config now says:     {expected}")
 
     projects = discover_all_projects()
     print(f"{len(projects)} project dirs found\n")

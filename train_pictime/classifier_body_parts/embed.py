@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -44,10 +45,46 @@ from train_pictime.classifier_body_parts.dataset import (
 )
 
 
-def load_pretrain_backbone(device: str):
-    """The SSL pretrain backbone, pre-finetune. Returns (backbone, embed_dim)."""
-    print(f"Pretrain ckpt: {C.PRETRAIN_CKPT}  (which={C.BACKBONE_WHICH})")
-    backbone, embed_dim = load_backbone(str(C.PRETRAIN_CFG), C.PRETRAIN_CKPT, C.BACKBONE_WHICH)
+def load_classifier_backbone(device: str):
+    """The backbone named by config.BACKBONE_SOURCE. Returns (backbone, embed_dim).
+
+    "finetune" is the deployed ReID backbone, so production can serve the body
+    embedding and this classifier from ONE forward pass. The projection head is
+    deliberately never built: we take the 384-d pre-head CLS, because the head is
+    where SupCon's nuisance-invariance lives.
+    """
+    if C.BACKBONE_SOURCE == "pretrain":
+        print(f"Backbone:  SSL pretrain (pre-finetune)")
+        print(f"           {C.PRETRAIN_CKPT}  (which={C.BACKBONE_WHICH})")
+        backbone, embed_dim = load_backbone(str(C.PRETRAIN_CFG),
+                                            C.PRETRAIN_CKPT,
+                                            C.BACKBONE_WHICH,
+                                           )
+    elif C.BACKBONE_SOURCE == "finetune":
+        # Base arch + weights come from reid_config so they cannot drift from whatever
+        # the finetune run actually started from; the ckpt then overwrites the backbone.
+        cfg = OmegaConf.load(C.REID_CONFIG)
+        base = Path(cfg.pretrain_config)
+        if not base.is_absolute():
+            base = C.DINOV3_REPO / cfg.pretrain_config
+        print(f"Backbone:  finetuned ReID (deployed) — projection head NOT built")
+        print(f"           base:  {base.name} @ {cfg.pretrained_weights}")
+        print(f"           ckpt:  {C.FINETUNE_CKPT}  (which={cfg.backbone_which})")
+        backbone, embed_dim = load_backbone(str(base),
+                                            cfg.pretrained_weights,
+                                            cfg.backbone_which,
+                                           )
+        state = torch.load(C.FINETUNE_CKPT, map_location=device)
+        if "backbone_state_dict" not in state:
+            raise KeyError(f"{C.FINETUNE_CKPT} has no 'backbone_state_dict' "
+                           f"(keys: {sorted(state)[:8]}) — is this a finetune ckpt?")
+        backbone.load_state_dict(state["backbone_state_dict"], strict=True)
+        del state
+        torch.cuda.empty_cache()
+    else:
+        raise ValueError(f"BACKBONE_SOURCE must be 'pretrain' or 'finetune', "
+                         f"got {C.BACKBONE_SOURCE!r}")
+
     backbone.to(device)
     backbone.eval()
     return backbone, embed_dim
@@ -137,7 +174,7 @@ def main():
     device = "cuda"
     setup_job(output_dir=None, seed=C.SEED)
 
-    transform_names = C.TRANSFORMS if C.RUN_ALL_TRANSFORMS else (C.TRANSFORM,)
+    transform_names = (C.TRANSFORM,)
     projects = discover_all_projects()
     print(f"\nDataset:    {C.DATASET_ROOT}")
     print(f"Projects:   {len(projects)}")
@@ -167,7 +204,7 @@ def main():
         print("\nNothing to do — every project with a baseline pool already has a valid cache.")
         return
 
-    backbone, embed_dim = load_pretrain_backbone(device)
+    backbone, embed_dim = load_classifier_backbone(device)
     if embed_dim != C.CLS_DIM:
         raise RuntimeError(f"Backbone embed_dim={embed_dim} but config.CLS_DIM={C.CLS_DIM} — "
                            f"arch drift between the pretrain cfg and this config")

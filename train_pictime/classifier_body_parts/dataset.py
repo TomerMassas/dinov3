@@ -110,17 +110,6 @@ def discover_all_projects() -> list[str]:
     return sorted(e.name for e in os.scandir(C.DATASET_ROOT) if e.is_dir())
 
 
-def discover_galleries() -> list[str]:
-    """Project ids that have a saved bodyfilter_result.json — i.e. the labeled set.
-
-    Only galleries the reviewer clicked Save/Done on have that file.
-    """
-    if C.GALLERIES is not None:
-        return list(C.GALLERIES)
-    return sorted(p for p in discover_all_projects()
-                  if (C.DATASET_ROOT / p / C.LABELS_FILENAME).exists())
-
-
 # ---------------------------------------------------------------------------
 # Labels and the baseline pool
 # ---------------------------------------------------------------------------
@@ -225,23 +214,40 @@ def gallery_cache_path(gallery_id: str, transform: str) -> Path:
     return C.DATASET_ROOT / gallery_id / C.embed_cache_name(transform)
 
 
-def cache_fingerprint(gallery_id: str, transform: str) -> str:
-    """JSON signature of everything the cached vectors depend on.
+def _feature_signature_dict(transform: str) -> dict:
+    """Everything the feature vectors depend on that is NOT gallery-specific."""
+    return {"backbone_source": C.BACKBONE_SOURCE,
+            "backbone_ckpt": C.backbone_ckpt(),
+            "backbone_which": C.BACKBONE_WHICH,
+            "transform": transform,
+            "crop_size": C.CROP_SIZE,
+            "geometry_names": list(GEOMETRY_NAMES),
+           }
 
-    Checked on every load. If any of these change the cached CLS/geometry are no
-    longer what the current code would produce, and using them would be silently
-    wrong rather than loudly broken.
+
+def feature_signature(transform: str) -> str:
+    """Gallery-independent signature, stored in the model bundle at train time.
+
+    predict.py re-checks it against the current config and refuses to run on a
+    mismatch. This is the guard for the dangerous case: swap the backbone ckpt,
+    re-embed, forget to retrain — the old model still *fits* the new vectors (both
+    384-d), so nothing errors and every score is silently wrong. Comparing this one
+    string catches a changed ckpt, a changed backbone source, a changed transform, a
+    changed crop size and an added geometry feature.
     """
-    return json.dumps({"backbone_tag": C.BACKBONE_TAG,
-                       "pretrain_ckpt": str(C.PRETRAIN_CKPT),
-                       "backbone_which": C.BACKBONE_WHICH,
-                       "transform": transform,
-                       "crop_size": C.CROP_SIZE,
-                       "geometry_names": list(GEOMETRY_NAMES),
-                       "detections": detections_signature(gallery_id),
-                      },
-                      sort_keys=True,
-                     )
+    return json.dumps(_feature_signature_dict(transform), sort_keys=True)
+
+
+def cache_fingerprint(gallery_id: str, transform: str) -> str:
+    """Feature signature + this gallery's detections, stamped on its cache.
+
+    Checked on every load. If any of it changes the cached CLS/geometry are no longer
+    what the current code would produce, so using them would be silently wrong rather
+    than loudly broken.
+    """
+    d = _feature_signature_dict(transform)
+    d["detections"] = detections_signature(gallery_id)
+    return json.dumps(d, sort_keys=True)
 
 
 def cache_is_valid(gallery_id: str, transform: str) -> bool:
@@ -301,6 +307,19 @@ def save_gallery_cache(gallery_id: str,
 
 # ---------------------------------------------------------------------------
 # Geometry / context features
+def build_X(cache, feature_set: str) -> np.ndarray:
+    """Assemble the feature matrix. Lives here, not in train.py, because predict.py
+    must produce the SAME column order and a silent divergence would be invisible."""
+    if feature_set == "cls":
+        return np.asarray(cache["cls"])
+    if feature_set == "geom":
+        return np.asarray(cache["geom"])
+    if feature_set == "cls+geom":
+        return np.concatenate([np.asarray(cache["cls"]), np.asarray(cache["geom"])], axis=1)
+    raise ValueError(f"Unknown feature set {feature_set!r} "
+                     f"(expected cls, geom or cls+geom)")
+
+
 # ---------------------------------------------------------------------------
 
 def _iou(a: list[float], b: list[float]) -> float:
