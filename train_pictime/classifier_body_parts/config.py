@@ -124,11 +124,12 @@ EMBED_FORCE = False
 # ---------------------------------------------------------------------------
 # Features
 # ---------------------------------------------------------------------------
-#   "cls"       384-d CLS only
-#   "geom"      geometry / context scalars only (cheap, backbone-free baseline)
-#   "cls+geom"  both — expected best, since geometry carries what the transform hides
-
-FEATURE_SET = "cls+geom"       # the one predict.py uses; train.py picks the winner
+# The model is fitted on the 384-d CLS embedding alone, and that is not configurable.
+# Four of the 12 geometry scalars (max_iou_sibling, log_n_dets, area_rank) need every
+# detection in the frame plus the image dimensions, so a model using them could not be
+# served from embeddings alone -- which is what production does. Measured cost of
+# leaving geometry out, 2026-08-25, 6 galleries, leave-one-gallery-out: PR-AUC 0.9415
+# vs 0.9430. The embedding carries essentially all of the signal.
 
 # ---------------------------------------------------------------------------
 # Training
@@ -238,7 +239,7 @@ EMBED_CACHE = "classifier_embeddings_{tag}_{transform}.npz"
 # the newest model without the path changing. Nothing is lost by dropping the winning
 # transform / feature set from the name: both are stored inside the bundle, printed by
 # predict.py at startup, and recorded in report.md and every scores file.
-MODEL_FILE = "model_{tag}.pkl"
+MODEL_FILE = "model_{tag}.npz"
 
 # DELIBERATELY NOT tagged: the labeling UI reads this path, and it must stay stable
 # across backbone swaps. Provenance is not lost — the file's `model` block records the

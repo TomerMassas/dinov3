@@ -307,19 +307,6 @@ def save_gallery_cache(gallery_id: str,
 
 # ---------------------------------------------------------------------------
 # Geometry / context features
-def build_X(cache, feature_set: str) -> np.ndarray:
-    """Assemble the feature matrix. Lives here, not in train.py, because predict.py
-    must produce the SAME column order and a silent divergence would be invisible."""
-    if feature_set == "cls":
-        return np.asarray(cache["cls"])
-    if feature_set == "geom":
-        return np.asarray(cache["geom"])
-    if feature_set == "cls+geom":
-        return np.concatenate([np.asarray(cache["cls"]), np.asarray(cache["geom"])], axis=1)
-    raise ValueError(f"Unknown feature set {feature_set!r} "
-                     f"(expected cls, geom or cls+geom)")
-
-
 # ---------------------------------------------------------------------------
 
 def _iou(a: list[float], b: list[float]) -> float:

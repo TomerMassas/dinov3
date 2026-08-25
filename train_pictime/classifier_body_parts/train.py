@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import json
 import os
-import pickle
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -43,7 +42,6 @@ from sklearn.preprocessing import StandardScaler
 
 from train_pictime.classifier_body_parts import config as C
 from train_pictime.classifier_body_parts import dataset
-from train_pictime.classifier_body_parts.dataset import build_X
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +72,7 @@ def load_features(galleries: list[str]) -> dict:
     Only crops present in BOTH the cache and the labels are used; a labeled key with
     no cached embedding is counted and reported rather than silently dropped.
     """
-    cls_parts, geom_parts, labels, gallery_of, keys = [], [], [], [], []
+    cls_parts, labels, gallery_of, keys = [], [], [], []
     per_gallery: dict[str, dict] = {}
 
     for gallery_id in galleries:
@@ -99,7 +97,6 @@ def load_features(galleries: list[str]) -> dict:
 
         idxs = np.array([i for i, _k, _y in hit], dtype=np.int64)
         cls_parts.append(cache["cls"][idxs])
-        geom_parts.append(cache["geom"][idxs])
         labels.extend(y for _i, _k, y in hit)
         keys.extend(k for _i, k, _y in hit)
         gallery_of.extend([gallery_id] * len(hit))
@@ -110,12 +107,10 @@ def load_features(galleries: list[str]) -> dict:
                            f"embed.py has been run.")
 
     return {"cls": np.concatenate(cls_parts, axis=0),
-            "geom": np.concatenate(geom_parts, axis=0),
             "label": np.array(labels, dtype=np.int8),
             "gallery_id": np.array(gallery_of, dtype=object),
             "key": np.array(keys, dtype=object),
             "per_gallery": per_gallery,
-            "geometry_names": list(dataset.GEOMETRY_NAMES),
            }
 
 
@@ -182,15 +177,6 @@ def rates_at(y: np.ndarray, probs: np.ndarray, threshold: float) -> dict:
            }
 
 
-def geometry_weights(model: Pipeline, geometry_names: list[str]) -> list[tuple[str, float]]:
-    """Named LR coefficients for the geometry block (standardized, so comparable)."""
-    if "geom" not in C.FEATURE_SET:
-        return []
-    geom_coef = model.named_steps["lr"].coef_[0][-len(geometry_names):]
-    pairs = [(name, float(w)) for name, w in zip(geometry_names, geom_coef)]
-    return sorted(pairs, key=lambda kv: abs(kv[1]), reverse=True)
-
-
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
@@ -234,7 +220,7 @@ def write_report(path: Path, meta: dict) -> None:
              f"which=`{C.BACKBONE_WHICH}`")
     L.append(f"- Checkpoint: `{C.backbone_ckpt()}`")
     L.append(f"- Dataset: `{C.DATASET_ROOT}`")
-    L.append(f"- Features: `{C.FEATURE_SET}` on the `{C.TRANSFORM}` transform")
+    L.append(f"- Features: 384-d CLS embedding on the `{C.TRANSFORM}` transform")
     L.append("- Positive class: crop is ONLY body parts (`kept_keys`) -> discard before clustering")
     L.append("- Negative class: real, usable no-face person crop (`deleted_keys`)")
     L.append("")
@@ -262,7 +248,7 @@ def write_report(path: Path, meta: dict) -> None:
     L.append("")
     L.append("| C | PR-AUC | ROC-AUC |")
     L.append("|---|---|---|")
-    for row in meta["sweep"]:
+    for row in sorted(meta["sweep"], key=lambda r: r["pr_auc"], reverse=True):
         mark = " **<-**" if row["c"] == meta["best_c"] else ""
         L.append(f"| {row['c']:g} | {row['pr_auc']:.4f} | {row['roc_auc']:.4f}{mark} |")
     L.append("")
@@ -297,15 +283,6 @@ def write_report(path: Path, meta: dict) -> None:
         L.append(f"| `{row['gallery']}` | {row['n_pos']} | {row['n_neg']} | {auc} | "
                  f"{row['recall']:.3f} | {row['fpr']:.4f} |")
     L.append("")
-
-    if meta["geom_weights"]:
-        L.append("## Geometry weights (shipped model, standardized)")
-        L.append("")
-        L.append("| feature | coefficient |")
-        L.append("|---|---|")
-        for name, w in meta["geom_weights"]:
-            L.append(f"| `{name}` | {w:+.4f} |")
-        L.append("")
 
     L.append("## Shipped model")
     L.append("")
@@ -343,7 +320,7 @@ def main():
     data = load_features(approved)
     y = np.asarray(data["label"]).astype(int)
     galleries = np.asarray(data["gallery_id"]).astype(str)
-    X = build_X(data, C.FEATURE_SET)
+    X = data["cls"]
 
     print(f"\nLoaded {len(y)} crops | {int(y.sum())} positives "
           f"({y.mean():.4f}) | {len(data['per_gallery'])} galleries")
@@ -399,30 +376,44 @@ def main():
     model = make_lr(best_c)
     model.fit(X, y)
     model_file = C.model_path()
-    bundle = {"model": model,
-              "transform": C.TRANSFORM,
-              "feature_set": C.FEATURE_SET,
-              "C": best_c,
-              "labeling_threshold": t_label,
-              "deploy_threshold": t_deploy,
-              "geometry_names": data["geometry_names"],
-              "backbone_tag": C.BACKBONE_TAG,
-              "backbone_source": C.BACKBONE_SOURCE,
-              "backbone_ckpt": C.backbone_ckpt(),
-              "backbone_which": C.BACKBONE_WHICH,
-              "cls_dim": C.CLS_DIM,
-              "crop_size": C.CROP_SIZE,
-              # Re-checked by predict.py against the live config. Swap the backbone ckpt,
-              # re-embed and forget to retrain, and the old model still fits the new
-              # 384-d vectors — nothing errors, every score is silently wrong.
-              "feature_signature": dataset.feature_signature(C.TRANSFORM),
-              "trained_on_galleries": sorted(data["per_gallery"]),
-              "n_train": int(len(y)),
-              "n_positives": int(y.sum()),
-             }
-    tmp = str(model_file) + ".tmp"
-    with open(tmp, "wb") as f:
-        pickle.dump(bundle, f)
+    # Saved as plain arrays rather than a pickled sklearn object. A StandardScaler
+    # followed by a binary LogisticRegression is fully described by four arrays, and
+    #     p = sigmoid(((x - mean) / scale) @ coef + intercept)
+    # reproduces predict_proba exactly — class_weight affects fitting, not the decision
+    # function. So loading needs numpy alone: no sklearn version to keep matched, and
+    # no code executed on load.
+    scaler, lr = model.named_steps["scale"], model.named_steps["lr"]
+    if list(lr.classes_) != [0, 1]:
+        raise RuntimeError(f"classes_ is {list(lr.classes_)}, expected [0, 1] — coef_[0] "
+                           f"would be the wrong class and every score would invert")
+
+    # Strings and string lists go in as unicode arrays, NOT dtype=object: object arrays
+    # are stored by pickling them, which would put pickle right back into the load path.
+    tmp = str(model_file) + ".tmp.npz"      # np.savez appends .npz unless already there
+    np.savez(tmp,
+             mean=np.asarray(scaler.mean_, dtype=np.float64),
+             scale=np.asarray(scaler.scale_, dtype=np.float64),
+             coef=np.asarray(lr.coef_, dtype=np.float64).reshape(-1),
+             intercept=np.float64(lr.intercept_[0]),
+             transform=C.TRANSFORM,
+             feature_set="cls",
+             C=np.float64(best_c),
+             labeling_threshold=np.float64(t_label),
+             deploy_threshold=np.float64(t_deploy),
+             backbone_tag=C.BACKBONE_TAG,
+             backbone_source=C.BACKBONE_SOURCE,
+             backbone_ckpt=C.backbone_ckpt(),
+             backbone_which=C.BACKBONE_WHICH,
+             cls_dim=np.int64(C.CLS_DIM),
+             crop_size=np.int64(C.CROP_SIZE),
+             # Re-checked against the live config before scoring. Swap the backbone
+             # ckpt, re-embed and forget to retrain, and the old model still fits the
+             # new 384-d vectors — nothing errors, every score is silently wrong.
+             feature_signature=dataset.feature_signature(C.TRANSFORM),
+             trained_on_galleries=np.array(sorted(data["per_gallery"])),
+             n_train=np.int64(len(y)),
+             n_positives=np.int64(y.sum()),
+            )
     os.replace(tmp, model_file)
     print(f"Saved {model_file}")
 
@@ -441,7 +432,6 @@ def main():
                   "n_pos_total": int(y.sum()),
                   "pool_pos_rate": float(y.mean()),
                   "folds": folds,
-                  "geom_weights": geometry_weights(model, data["geometry_names"]),
                   "model_path": str(model_file),
                  },
                 )

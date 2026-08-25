@@ -40,7 +40,6 @@ from __future__ import annotations
 
 import json
 import os
-import pickle
 import random
 import sys
 from datetime import datetime
@@ -53,11 +52,12 @@ from tqdm import tqdm
 
 from train_pictime.classifier_body_parts import config as C
 from train_pictime.classifier_body_parts import dataset
-# build_X comes from dataset, not train: the feature column order MUST match training
-# exactly, and a silent divergence here would be invisible at runtime.
 from train_pictime.classifier_body_parts.dataset import (
-    build_X, cache_is_valid, discover_all_projects, load_gallery_cache,
+    cache_is_valid, discover_all_projects, load_gallery_cache,
 )
+# Scoring goes through the production class, so the numbers the labeling UI sees and
+# the decisions production makes cannot drift apart.
+from train_pictime.classifier_body_parts.inference import CropFilter
 
 
 # ---------------------------------------------------------------------------
@@ -65,16 +65,20 @@ from train_pictime.classifier_body_parts.dataset import (
 # ---------------------------------------------------------------------------
 
 def load_bundle() -> tuple[dict, Path]:
-    """The pickled bundle from train.py: model, transform, feature_set, thresholds.
+    """The model train.py wrote: weights, thresholds and provenance.
 
     train.py always writes the same filename, so there is nothing to disambiguate and
     predict always picks up the newest model. MODEL_PATH pins an archived one instead.
+
+    0-d entries are unwrapped to plain Python scalars, so the provenance block this
+    module writes into the scores file is JSON-serialisable as-is.
     """
     path = Path(C.MODEL_PATH) if C.MODEL_PATH else C.model_path()
     if not path.exists():
         raise FileNotFoundError(f"{path} not found — run train.py first")
-    with open(path, "rb") as f:
-        bundle = pickle.load(f)
+    with np.load(path) as w:
+        bundle = {k: (w[k].item() if w[k].ndim == 0 else w[k]) for k in w.files}
+    bundle["trained_on_galleries"] = [str(g) for g in bundle["trained_on_galleries"]]
     return bundle, path
 
 
@@ -99,17 +103,18 @@ def load_reviewed_keys(gallery_dir: Path) -> set[str]:
 # Scoring
 # ---------------------------------------------------------------------------
 
-def score_gallery(bundle: dict, gallery_id: str) -> tuple[list[str], np.ndarray, dict]:
-    """Read the gallery's embedding cache and apply the LR. Pure CPU, no images.
+def score_gallery(flt: CropFilter,
+                  transform: str,
+                  gallery_id: str,
+                 ) -> tuple[list[str], np.ndarray, dict]:
+    """Read the gallery's embedding cache and score it. Pure CPU, no images.
 
     The cache's fingerprint is verified on load, so a cache built with a different
     backbone / transform / geometry set / detections.json raises instead of quietly
     producing wrong scores.
     """
-    cache = load_gallery_cache(gallery_id, bundle["transform"])
-    X = build_X(cache, bundle["feature_set"])
-    probs = bundle["model"].predict_proba(X)[:, 1]
-    return cache["key"].tolist(), probs, cache["provenance"]
+    cache = load_gallery_cache(gallery_id, transform)
+    return cache["key"].tolist(), flt.score(cache["cls"]), cache["provenance"]
 
 
 def build_output(bundle: dict,
@@ -200,6 +205,9 @@ def save_json(path: Path, obj: dict) -> None:
 
 def main():
     bundle, model_path = load_bundle()
+    # Thresholds are applied in build_output, so the one CropFilter defaults to is
+    # unused here; only its scoring is.
+    flt = CropFilter(model_path=model_path)
     out_name = C.SCORES_FILENAME
     print(f"Model:      {model_path}")
     print(f"            {bundle['transform']} / {bundle['feature_set']} / C={bundle['C']:g}, "
@@ -249,7 +257,8 @@ def main():
             continue
 
         try:
-            scored_keys, probs, provenance = score_gallery(bundle, gallery_id)
+            scored_keys, probs, provenance = score_gallery(flt, bundle["transform"],
+                                                           gallery_id)
             if not scored_keys:
                 tqdm.write(f"[{gallery_id}] empty cache — skipped")
                 skipped_no_cache += 1
