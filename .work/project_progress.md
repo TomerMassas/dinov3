@@ -1594,3 +1594,203 @@ guarded and the silent-no-op footgun is gone. 17 smoke checks green, including
   `experiment.md`, pink V13 ckpts, store pipeline VM end-to-end test.
 - **Uncommitted:** `tmp_antonia/` + `classifier_body_parts/` edits + `realworld_eval/config.py`
   + `realworld_eval/recluster_labeling_files.py` + this entry.
+
+## 2026-08-25 — Classifier retrain after relabeling: the num_backfilled bug, npz artifact, production inference script
+
+Session started as "I relabeled a gallery, remind me how to retrain" and turned into
+finding out why training saw one gallery instead of six, then stripping the machinery
+that caused it.
+
+### The bug — a field whose meaning I guessed
+
+`train.py` was rejecting galleries on `num_backfilled != 0`, a check added the previous
+session on the assumption that the field meant "labels not made by the reviewer". It
+actually counts **labels carried over from the previous review round**: `17601187` shows
+`num_backfilled: 1051`, which is exactly its own *old* `num_kept`, and `18226778` shows
+`507`, likewise. So every relabeled gallery was silently dropped and only the one Tomer
+had not relabeled survived — "the script sees 1 labeled gallery".
+
+Two further defects in the same admission code, both mine:
+
+- **The count cross-check** compared the completion log's `num_kept`/`num_deleted`
+  (a snapshot written at completion time) against the live `bodyfilter_result.json`.
+  Relabeling legitimately desynchronizes those, so it rejected exactly the galleries
+  that had just been re-reviewed.
+- **An approved gallery with no labels file on disk was invisible** — neither admitted
+  nor rejected, no message at all — because discovery iterated on-disk label files and
+  only then consulted the log. That is why the failure was undiagnosable from output.
+
+### Admission, rewritten twice, ending at one condition
+
+The first version was built around "two independent attestations must agree" (approval
+from the log, full baseline coverage from the data), with no numeric knob, integer-zero
+checks, re-assertions at both commit points, and a `review_audit` stamp in the bundle.
+Tomer rejected it as over-built, and he was right: the overbuild *was* the bug.
+
+**Final rule: `approved is True` in `bodyfilter_completion_log.json`. Nothing else.**
+No task filter (the file is bodyfilter-specific by name), no `num_suppressed`, no
+`num_backfilled`, no count comparison, no derived coverage. Labels come from the live
+`bodyfilter_result.json`; the log decides only *which* galleries.
+
+`approved is True` stays an identity check, not a truthy one — the string `"true"` must
+not pass.
+
+### train.py rewritten — 736 -> 443 lines
+
+Leave-one-gallery-out now does everything in one loop: for each `C`, every gallery is
+predicted by a model that never saw it; `C` is picked by pooled PR-AUC on those
+predictions; both thresholds are picked by walking the same pooled set; then refit and
+ship. Every reported number is cross-gallery by construction, and the `CV_GALLERY`
+wrong-prior trap from 07-28 is gone structurally rather than guarded against.
+
+Deleted: the three-run structure, run-1 within-gallery selection CV, `StratifiedKFold`,
+the kNN baseline, Wilson CIs, thin-fold flagging, `assert_all_admitted`, `review_audit`,
+and the constants `CV_GALLERY`, `TEST_GALLERY`, `CALIBRATION_GALLERIES`,
+`MIN_POSITIVES_PER_FOLD`, `KNN_K`, `CV_FOLDS`, `GALLERIES`, `COMPLETION_TASK`,
+`RUN_ALL_TRANSFORMS`. From `dataset.py`: `discover_galleries`, `load_completion_log`,
+`gallery_review_status`, `discover_training_galleries`.
+
+### Model artifact: pickled Pipeline -> npz
+
+Tomer asked what the point of a numpy weights file is when a pickle already exists.
+Answer: the pickle needs sklearn installed at a compatible version and executes code on
+load. A `StandardScaler` + binary `LogisticRegression` is fully described by four
+arrays, so `train.py` now writes **only** an npz and the pickle is gone.
+
+Details that matter: strings and the gallery list are stored as **unicode arrays, not
+`dtype=object`** — object arrays are stored by pickling them, which would put pickle
+right back in the load path, so `np.load` needs no `allow_pickle`. A
+`classes_ == [0, 1]` guard was added because `coef_[0]` belonging to the wrong class
+would invert every score silently. Parity against `predict_proba` measured at
+**1.1e-16**; float32 inputs (what production feeds) shift the probability by 1e-8.
+
+### Feature set fixed to `cls`, and the *option* removed
+
+Tomer ran the ablation: `cls` PR-AUC 0.9415 vs `cls+geom` 0.9430 — not worth the
+production cost, since four of the 12 geometry scalars (`max_iou_sibling`,
+`log_n_dets`, `area_rank`) need every detection in the frame plus image dimensions, so
+a geom model cannot be served from embeddings alone.
+
+I first proposed a guard in the inference script that refused a `cls+geom` model.
+Tomer's correction: a guard is over-coding when the possibility can be removed instead.
+So `FEATURE_SETS` is deleted from config, the geometry plumbing is out of `load_features`
+and the sweep, `geometry_weights` and the report's geometry section are gone, and
+`dataset.build_X` — the last place a geom feature vector could be assembled — is
+deleted.
+
+### inference.py (new) and predict.py
+
+`inference.py` is standalone: numpy only, zero imports from the package, copyable into
+the serving repo. `CropFilter.should_discard(embeddings) -> bool per crop` (renamed from
+`is_fragment` at Tomer's request — states the action, no polarity ambiguity), plus
+`.score()` and a `.meta` dict. `MODEL_PATH = ""` for Tomer to fill. Validates 2-D shape,
+width against `cls_dim`, and finiteness — a NaN embedding would otherwise score NaN,
+compare `False`, and be silently kept.
+
+`predict.py` switched to `np.load`, unwrapping 0-d entries to Python scalars so the
+provenance block stays JSON-serialisable, and now scores **through `CropFilter`** so the
+labeling UI's numbers and production's decisions cannot drift apart.
+
+### Retrain results — the priors moved a long way
+
+6 approved galleries (`31804366` is not approved and was excluded), 9712 crops, 6902
+positives, `C=0.003`. Positive rates now **0.22–0.81** against ~0.10–0.35 in the Aug-5
+run, because the relabeling broadened what counts as a bad crop. Both gates moved
+accordingly: labeling 0.0447 -> **0.1043**, deploy 0.9700 -> **0.7871**. At a ~71%
+prior the deploy gate is a far more aggressive filter than before — worth reviewing
+before the scores go downstream.
+
+### 128-d body embedding vs 384-d backbone CLS — measured, keep the CLS
+
+Tomer asked whether the classifier could run on the 128-d post-projection-head body
+embedding instead of the 384-d pre-head CLS. The win would be integration, not compute:
+production already gets both tensors from one forward pass, but the 128-d vector is the
+artifact it already stores and passes around, so the classifier could consume it
+directly instead of having a second vector plumbed out.
+
+**It cost nothing to test.** `realworld_eval/prep_labeling_files.py` already writes
+`embeddings_<tag>.npz` per project (filenames, bbox_indices, embeddings [N,128] L2-normed,
+from `backbone -> proj_head -> F.normalize`) using the same `get_val_transform()` the
+classifier pins, over the whole of `detections.json` — a superset of the classifier's
+post-face-filter pool. So the 128-d vectors for every labeled crop were already on disk.
+No GPU, no re-embed.
+
+Both arms were scored on the SAME 9712 rows (the three-way intersection of the two
+caches and the labels), with the same leave-one-gallery-out sweep. All six galleries
+reported `0 missing` from both sources, and the 384-d arm reproduced report.md's 0.9415
+to the digit — which is what makes the comparison trustworthy.
+
+| metric | 384-d CLS | 128-d body | delta |
+|---|---|---|---|
+| PR-AUC | **0.9415** | 0.9298 | -0.0117 |
+| ROC-AUC | **0.8689** | 0.8446 | -0.0243 |
+| recall @ 95% precision | **59.7%** | 55.1% | -4.6 pp |
+| shown @ 99% recall | **94.4%** | 95.9% | +1.5 pp worse |
+| best C | 0.003 | 1.0 | |
+
+Worse on **5 of 6 galleries**; its only win is `21833423` (0.9430 vs 0.9287), which has
+16 positives in 73 crops, i.e. noise.
+
+**The C boundary was ruled out explicitly.** The 128-d optimum first landed on C=1, the
+top of `C_GRID`, so the sweep was rerun over `(0.001 ... 100)`. The curve is a clean
+interior maximum: monotone up 0.9144 -> 0.9298 to C=1, monotone down to 0.9268 at C=100.
+C=1 is genuine, so the 128-d space really does want ~300x less regularization than the
+384-d one — a property of 128 L2-normalized dimensions, not a truncated grid.
+
+**Decision: keep the 384-d CLS.** 4.6 pp of fragment recall at fixed precision is a real
+cost for a modest plumbing simplification.
+
+Also worth recording: the 2026-07-27 note called the projection output "the worst
+possible feature" because SupCon deliberately destroys crop-completeness. Directionally
+right, materially overstated — the head degrades the signal by about a point of PR-AUC
+rather than erasing it.
+
+**And the actionable finding, which is not about the feature space:** `17601187` is the
+weakest gallery in BOTH arms (0.8301 / 0.8055) and is 4082 crops, 42% of the labeled
+data. Whatever limits the classifier lives there, in either representation.
+
+Two throwaway scripts did this and were deleted afterwards, the numbers above being the
+artifact: `classifier_body_parts/compare_proj_features.py` (the A/B) and
+`realworld_eval/tmp_embed_single_project.py` (which generated the one missing
+`embeddings_v52.npz`, for `21833423` — `prep_labeling_files` skips any project that
+already has `clusters_fixed.json`). That npz **remains on disk** and is format-identical
+to what `prep_labeling_files` writes.
+
+
+### Process feedback (Tomer, twice, emphatically)
+
+- **A question is a question.** Asking "why X?" is a request for an answer, not for a
+  change. Answer first; he decides whether to change anything.
+- **Show the diff before applying, even after the plan is approved.**
+- **Stop drifting.** Stay on the file under discussion; do not pull adjacent findings
+  into the middle of an answer.
+
+### Corrections logged
+
+- Misread `num_backfilled` and gated on it — the cause of the whole session.
+- Proposed adding an npz exporter to `train.py` while an equivalent exporter already
+  existed in the repo; withdrew it, then the pickle was dropped entirely instead.
+- Estimated the rewritten `train.py` at ~200 lines; it is 443 (logic ~123, the rest
+  report writer and console output).
+- Three smoke-test failures were wrong assertions, not defects: threshold ordering is
+  not a universal invariant (it inverts on perfectly separable data), `predict.py`'s
+  `round(..., 5)` sets a 5e-6 floor on score comparisons, and `inspect.signature()`
+  includes the return annotation.
+
+### Open / carried forward
+
+- **`README.md` is stale** — still documents the pickled bundle, the three-run
+  evaluation, the feature-set ablation and `build_X`. Not touched this session.
+- **`MODEL_PATH` in `inference.py` is empty**, waiting on Tomer.
+- **Smoke tests live in the session scratchpad, not the repo** — 67 checks across four
+  suites (train 23, npz parity 9, inference 22, predict 13). Worth committing into the
+  package if they should survive.
+- The deploy gate at 0.787 against a ~71% prior drops a much larger share of crops than
+  the old 0.97 gate; verify against a gallery before shipping scores onward.
+- `embed.py`'s module docstring still claims the V18 pretrain backbone and lists
+  `_v18_` cache filenames; the code is correct, the docstring lies. Offered twice, not
+  done.
+- Carried (still): `all_approved` full comparison, `1e-12` epsilon parity, Trial 2
+  `experiment.md`, pink V13 ckpts, store pipeline VM end-to-end test.
+- **Committed** as `a333ebc` (config, dataset, inference, predict, train). Working tree
+  clean apart from this entry.
